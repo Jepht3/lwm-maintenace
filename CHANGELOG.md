@@ -7,6 +7,8 @@
 - « Mettre à jour » un client en un clic : toutes les mises à jour de ses sites sont mises en file
 - Classement d'un site depuis sa fiche (menu ⋮ › Classer dans un dossier) ou dès sa connexion
 - Supprimer un dossier ne retire pas ses sites (ils passent « sans dossier »)
+- Application signée et optimisée (2,6 Mo au lieu de 21 Mo) ; à installer après désinstallation d'une version de test
+- La barre d'état garde un fond uni quand on fait défiler l'accueil
 
 ### Extension WordPress
 - Numéro de version aligné sur l'application (1.2.0)

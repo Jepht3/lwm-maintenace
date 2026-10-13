@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -147,6 +150,8 @@ fun AppRoot(
             }
             if (route.isEmpty()) BottomNav(tab, pendingCount, running) { tab = it }
         }
+        // Fond sous la barre d'état : le contenu qui défile ne passe pas sous l'heure.
+        if (route.isEmpty()) Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(ui.bg))
 
         SnackbarHost(
             snackbar,

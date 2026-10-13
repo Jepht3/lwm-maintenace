@@ -332,14 +332,10 @@ private fun FolderHeader(
         }
         when {
             busy -> Spinner(ui.accent, 18.dp)
-            pending > 0 && onUpdate != null -> Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(ui.accentSoft).clickable(onClick = onUpdate).padding(horizontal = 10.dp, vertical = 7.dp),
-            ) {
-                Ico(R.drawable.ic_ui_download, ui.onAccentSoft, 15.dp)
-                Text("Mettre à jour", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ui.onAccentSoft)
-            }
+            pending > 0 && onUpdate != null -> Box(
+                Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(ui.accentSoft).clickable(onClick = onUpdate),
+                contentAlignment = Alignment.Center,
+            ) { Ico(R.drawable.ic_ui_download, ui.onAccentSoft, 19.dp, "Mettre à jour ce client") }
         }
         if (onEdit != null) GhostIconButton(R.drawable.ic_ui_edit, "Modifier le dossier", onEdit, tint = ui.textMuted)
         Ico(R.drawable.ic_ui_chevron_right, ui.textSubtle, 18.dp, modifier = Modifier.rotate(if (collapsed) 0f else 90f))

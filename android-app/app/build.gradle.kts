@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -15,10 +17,26 @@ android {
         versionName = "1.2.0"
     }
 
+    // Clé de signature locale (android-app/signing/, hors dépôt)
+    val signingProps = rootProject.file("signing/keystore.properties")
+    signingConfigs {
+        if (signingProps.exists()) {
+            create("release") {
+                val p = Properties().apply { signingProps.inputStream().use { load(it) } }
+                storeFile = rootProject.file(p.getProperty("storeFile"))
+                storePassword = p.getProperty("storePassword")
+                keyAlias = p.getProperty("keyAlias")
+                keyPassword = p.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 

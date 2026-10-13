@@ -8,13 +8,13 @@ Gérez les mises à jour de vos sites WordPress (cœur, extensions, thèmes, tra
 |---|---|
 | `wp-plugin/remote-updater/` | Extension WordPress : API REST sécurisée (`wpru/v1`), page de connexion par QR code, compatible multisite |
 | `android-app/` | Application Android (Kotlin, Jetpack Compose) |
-| `dist/` | Derniers paquets : `remote-updater.zip` (extension) et `RemoteUpdater-debug.apk` (app) |
+| `dist/` | Derniers paquets : `remote-updater.zip` (extension) et `RemoteUpdater.apk` (app, version signée) |
 | `captures/` | Captures d'écran de l'app |
 
 ## Installation
 
 1. **WordPress** : Extensions › Ajouter › Téléverser `dist/remote-updater.zip`, puis activer (« Activer sur le réseau » en multisite).
-2. **Android** : installer `dist/RemoteUpdater-debug.apk`.
+2. **Android** : installer `dist/RemoteUpdater.apk`.
 3. Dans WordPress : Réglages › Remote Updater › « Générer un code de connexion », puis scanner le QR code depuis l'app.
 
 ## Fonctionnalités
@@ -37,9 +37,9 @@ Gérez les mises à jour de vos sites WordPress (cœur, extensions, thèmes, tra
 
 ```bash
 cd android-app
-./gradlew assembleDebug
+./gradlew assembleRelease
 ```
 
-JDK 17 et Android SDK (compileSdk 36) requis.
+JDK 17 et Android SDK (compileSdk 36) requis. La version release est signée avec la clé de `android-app/signing/` (hors dépôt, à sauvegarder : sans elle, impossible de publier une mise à jour installable par-dessus).
 
 > Design « WordPress Pro » : couleurs unies (bleu admin WordPress), mode nuit, file de mises à jour avec progression en direct, favicons des sites.
