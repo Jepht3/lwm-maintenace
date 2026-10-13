@@ -1,0 +1,6 @@
+<resources>
+    <!-- Bleu administration WordPress -->
+    <color name="ic_background">#2271B1</color>
+    <color name="wp_gray_90">#1D2327</color>
+    <color name="wp_gray_2">#F0F0F1</color>
+</resources>

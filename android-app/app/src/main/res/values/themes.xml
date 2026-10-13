@@ -1,0 +1,13 @@
+<resources>
+    <style name="Theme.RemoteUpdater" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/wp_gray_90</item>
+    </style>
+
+    <!-- Écran de démarrage (API SplashScreen) : fond gris admin WordPress + logo -->
+    <style name="Theme.RemoteUpdater.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/wp_gray_90</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_icon</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/ic_background</item>
+        <item name="postSplashScreenTheme">@style/Theme.RemoteUpdater</item>
+    </style>
+</resources>
