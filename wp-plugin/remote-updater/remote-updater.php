@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Remote Updater
  * Description:       Connectez ce site à l'application Android « Remote Updater » pour gérer les mises à jour du cœur WordPress, des extensions, des thèmes et des traductions à distance.
- * Version:           1.0.0
+ * Version:           1.2.0
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            Jephte
@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPRU_VERSION', '1.0.0' );
+define( 'WPRU_VERSION', '1.2.0' );
 define( 'WPRU_FILE', __FILE__ );
 define( 'WPRU_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPRU_URL', plugin_dir_url( __FILE__ ) );

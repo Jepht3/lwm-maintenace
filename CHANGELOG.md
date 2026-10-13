@@ -1,5 +1,16 @@
 # Journal des modifications — Remote Updater
 
+## 1.2.0 — 13 octobre 2026
+
+### Application Android
+- Dossiers clients : regroupez vos sites par client (nom + couleur), repliables sur l'accueil
+- « Mettre à jour » un client en un clic : toutes les mises à jour de ses sites sont mises en file
+- Classement d'un site depuis sa fiche (menu ⋮ › Classer dans un dossier) ou dès sa connexion
+- Supprimer un dossier ne retire pas ses sites (ils passent « sans dossier »)
+
+### Extension WordPress
+- Numéro de version aligné sur l'application (1.2.0)
+
 ## 1.1.0 — 13 octobre 2026
 
 ### Application Android

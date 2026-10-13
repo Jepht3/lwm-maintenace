@@ -80,6 +80,7 @@ fun AppRoot(
 ) {
     val ui = LocalUi.current
     val sites by vm.sites.collectAsState()
+    val folders by vm.folders.collectAsState()
     val history by vm.history.collectAsState()
     val jobs by vm.jobs.collectAsState()
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -111,7 +112,7 @@ fun AppRoot(
                         "" -> AnimatedContent(tab, transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) }, label = "tab") { t ->
                             when (t) {
                                 0 -> HomeScreen(
-                                    vm, account.name, sites, jobs,
+                                    vm, account.name, sites, folders, jobs,
                                     onOpenSite = { route = it },
                                     onAdd = { route = "add" },
                                     onOpenUpdates = { updatesFilter = it; tab = 1 },

@@ -20,6 +20,7 @@ Gérez les mises à jour de vos sites WordPress (cœur, extensions, thèmes, tra
 ## Fonctionnalités
 
 - Plusieurs sites dans la même app, multisite pris en charge
+- Dossiers clients : sites regroupés par client, mise à jour d'un client en un clic
 - Mise à jour du cœur, des extensions, des thèmes et des traductions (une par une ou tout d'un coup)
 - Mise à jour manuelle par fichier `.zip` (extensions premium)
 - Activation des mises à jour automatiques par extension / thème

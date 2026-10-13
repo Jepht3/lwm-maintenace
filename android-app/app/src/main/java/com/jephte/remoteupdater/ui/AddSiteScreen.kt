@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +58,8 @@ fun AddSiteScreen(vm: AppViewModel, onBack: () -> Unit, onAdded: () -> Unit) {
     var key by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val folders by vm.folders.collectAsState()
+    var folderId by remember { mutableStateOf<String?>(null) }
 
     fun connect(site: Site?) {
         if (site == null) {
@@ -66,7 +69,7 @@ fun AddSiteScreen(vm: AppViewModel, onBack: () -> Unit, onAdded: () -> Unit) {
         busy = true
         error = null
         scope.launch {
-            val err = vm.addSite(site)
+            val err = vm.addSite(site, folderId)
             busy = false
             if (err == null) {
                 vm.notify("Site connecté")
@@ -96,6 +99,17 @@ fun AddSiteScreen(vm: AppViewModel, onBack: () -> Unit, onAdded: () -> Unit) {
                 "Dans WordPress, ouvrez Réglages › Remote Updater (Réglages du réseau en multisite) puis touchez « Générer un code de connexion ».",
                 fontSize = 14.sp, lineHeight = 21.sp, color = ui.textMuted,
             )
+
+            if (folders.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Dossier client", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ui.text)
+                    FilterPills(
+                        listOf("Sans dossier") + folders.map { it.name },
+                        folders.indexOfFirst { it.id == folderId } + 1,
+                        { folderId = if (it == 0) null else folders[it - 1].id },
+                    )
+                }
+            }
 
             // Viseur QR (fond uni foncé)
             Column(

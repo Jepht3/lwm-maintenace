@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +64,9 @@ fun SiteDetailScreen(vm: AppViewModel, state: SiteState, jobs: Map<String, Updat
     var query by rememberSaveable { mutableStateOf("") }
     var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
+    var moving by remember { mutableStateOf(false) }
+    val folders by vm.folders.collectAsState()
+    val folder = folders.firstOrNull { it.id == state.site.folderId }
     var confirmRemove by remember { mutableStateOf(false) }
     var confirmCore by remember { mutableStateOf<UpdateJob?>(null) }
     var uploadType by remember { mutableStateOf("plugin") }
@@ -101,7 +105,7 @@ fun SiteDetailScreen(vm: AppViewModel, state: SiteState, jobs: Map<String, Updat
         Column(Modifier.background(ui.surface)) {
             TopBar(
                 state.site.name,
-                SiteRepository.hostOf(state.site.url) + (data?.let { " · WP ${it.info.wpVersion} · PHP ${it.info.phpVersion.substringBeforeLast('.')}" } ?: ""),
+                (folder?.let { "${it.name} · " } ?: "") + SiteRepository.hostOf(state.site.url) + (data?.let { " · WP ${it.info.wpVersion} · PHP ${it.info.phpVersion.substringBeforeLast('.')}" } ?: ""),
                 onBack,
             ) {
                 GhostIconButton(R.drawable.ic_ui_refresh, "Rechercher les mises à jour", { vm.refresh(id, force = true) })
@@ -109,6 +113,7 @@ fun SiteDetailScreen(vm: AppViewModel, state: SiteState, jobs: Map<String, Updat
                     GhostIconButton(R.drawable.ic_ui_more, "Plus d'options", { menu = true })
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(text = { Text("Renommer") }, leadingIcon = { Ico(R.drawable.ic_ui_edit, ui.text, 20.dp) }, onClick = { menu = false; renaming = true })
+                        DropdownMenuItem(text = { Text("Classer dans un dossier") }, leadingIcon = { Ico(R.drawable.ic_ui_folder, ui.text, 20.dp) }, onClick = { menu = false; moving = true })
                         DropdownMenuItem(
                             text = { Text("Ouvrir l'administration") },
                             leadingIcon = { Ico(R.drawable.ic_ui_external, ui.text, 20.dp) },
@@ -329,6 +334,14 @@ fun SiteDetailScreen(vm: AppViewModel, state: SiteState, jobs: Map<String, Updat
             text = { OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Nom affiché") }) },
             confirmButton = { TextButton(onClick = { vm.renameSite(id, name); renaming = false }, enabled = name.isNotBlank()) { Text("Enregistrer") } },
             dismissButton = { TextButton(onClick = { renaming = false }) { Text("Annuler") } },
+        )
+    }
+    if (moving) {
+        FolderPickerDialog(
+            folders, state.site.folderId,
+            onDismiss = { moving = false },
+            onPick = { moving = false; vm.moveSite(id, it) },
+            onCreate = { n, c -> moving = false; vm.moveSite(id, vm.createFolder(n, c)) },
         )
     }
     pending?.let { p ->

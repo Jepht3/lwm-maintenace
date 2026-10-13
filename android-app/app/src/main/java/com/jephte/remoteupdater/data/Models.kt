@@ -11,6 +11,8 @@ data class Site(
     /** URL de base de l'API, ex. https://exemple.com/wp-json/wpru/v1/ */
     val restBase: String,
     val key: String,
+    /** Dossier (client) auquel le site est rattaché, null = sans dossier. */
+    val folderId: String? = null,
 )
 
 data class Counts(

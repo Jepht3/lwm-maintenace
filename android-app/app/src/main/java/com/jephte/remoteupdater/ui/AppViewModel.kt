@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.jephte.remoteupdater.data.ActivityLog
 import com.jephte.remoteupdater.data.ApiException
+import com.jephte.remoteupdater.data.Folder
+import com.jephte.remoteupdater.data.FolderStore
 import com.jephte.remoteupdater.data.LogEntry
 import com.jephte.remoteupdater.data.Site
 import com.jephte.remoteupdater.data.SiteData
@@ -84,6 +86,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = SiteRepository(app)
     private val activityLog = ActivityLog(app)
+    private val folderStore = FolderStore(app)
+
+    private val _folders = MutableStateFlow(folderStore.load())
+    val folders: StateFlow<List<Folder>> = _folders
 
     private val _sites = MutableStateFlow(repo.load().map { SiteState(it) })
     val sites: StateFlow<List<SiteState>> = _sites
@@ -127,16 +133,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /* ---- Sites ---- */
 
-    suspend fun addSite(site: Site): String? {
+    suspend fun addSite(site: Site, folderId: String? = null): String? {
         val existing = _sites.value.firstOrNull { it.site.restBase == site.restBase }
         return try {
             val info = WpApi(site).status()
             if (existing != null) {
-                mutate(existing.site.id) { it.copy(site = site.copy(id = existing.site.id, name = existing.site.name)) }
+                mutate(existing.site.id) { it.copy(site = site.copy(id = existing.site.id, name = existing.site.name, folderId = folderId ?: existing.site.folderId)) }
                 persist()
                 refresh(existing.site.id)
             } else {
-                val named = site.copy(name = info.name.ifEmpty { site.name })
+                val named = site.copy(name = info.name.ifEmpty { site.name }, folderId = folderId)
                 _sites.update { it + SiteState(named) }
                 persist()
                 refresh(named.id)
@@ -162,6 +168,40 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         persist()
     }
 
+    /* ---- Dossiers (clients) ---- */
+
+    private fun saveFolders(list: List<Folder>) {
+        _folders.value = list
+        folderStore.save(list)
+    }
+
+    fun createFolder(name: String, color: Int): String {
+        val f = Folder(java.util.UUID.randomUUID().toString(), name.trim(), color)
+        saveFolders(_folders.value + f)
+        return f.id
+    }
+
+    fun updateFolder(id: String, name: String, color: Int) {
+        if (name.isBlank()) return
+        saveFolders(_folders.value.map { if (it.id == id) it.copy(name = name.trim(), color = color) else it })
+    }
+
+    /** Supprime le dossier ; ses sites passent « sans dossier ». */
+    fun deleteFolder(id: String) {
+        saveFolders(_folders.value.filterNot { it.id == id })
+        _sites.update { list -> list.map { if (it.site.folderId == id) it.copy(site = it.site.copy(folderId = null)) else it } }
+        persist()
+    }
+
+    fun moveSite(siteId: String, folderId: String?) {
+        mutate(siteId) { it.copy(site = it.site.copy(folderId = folderId)) }
+        persist()
+    }
+
+    /** Met à jour tous les sites d'un client en un clic. */
+    fun updateFolderSites(folderId: String) =
+        enqueue(_sites.value.filter { it.site.folderId == folderId }.flatMap { it.pending })
+
     /** Efface tous les sites (suppression du compte). */
     fun wipeAll() {
         workers.values.forEach { it.cancel() }
@@ -169,6 +209,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _jobs.value = emptyMap()
         _sites.value = emptyList()
         persist()
+        saveFolders(emptyList())
         clearHistory()
     }
 

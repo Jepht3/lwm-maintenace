@@ -33,6 +33,7 @@ class SiteRepository(context: Context) {
                 url = o.getString("url"),
                 restBase = o.getString("rest"),
                 key = key,
+                folderId = o.optString("folder").ifEmpty { null },
             )
         }
     }
@@ -46,7 +47,8 @@ class SiteRepository(context: Context) {
                     .put("name", it.name)
                     .put("url", it.url)
                     .put("rest", it.restBase)
-                    .put("key", Crypto.encrypt(it.key)),
+                    .put("key", Crypto.encrypt(it.key))
+                    .put("folder", it.folderId ?: ""),
             )
         }
         prefs.edit().putString(KEY_SITES, arr.toString()).apply()

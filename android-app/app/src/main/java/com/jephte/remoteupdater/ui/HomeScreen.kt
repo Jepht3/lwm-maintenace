@@ -29,10 +29,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -43,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jephte.remoteupdater.R
+import com.jephte.remoteupdater.data.Folder
 import com.jephte.remoteupdater.data.SiteRepository
 import java.util.Calendar
 
@@ -52,6 +55,7 @@ fun HomeScreen(
     vm: AppViewModel,
     userName: String,
     sites: List<SiteState>,
+    folders: List<Folder>,
     jobs: Map<String, UpdateJob>,
     onOpenSite: (String) -> Unit,
     onAdd: () -> Unit,
@@ -59,6 +63,10 @@ fun HomeScreen(
 ) {
     val ui = LocalUi.current
     var confirmAll by remember { mutableStateOf(false) }
+    var newFolder by remember { mutableStateOf(false) }
+    var editFolder by remember { mutableStateOf<Folder?>(null) }
+    var confirmFolder by remember { mutableStateOf<Folder?>(null) }
+    var collapsed by rememberSaveable { mutableStateOf(setOf<String>()) }
     val pending = sites.flatMap { it.pending }
     val upToDate = sites.count { it.data != null && it.updateCount == 0 && it.error == null }
     val active = jobs.values.filter { it.state == JobState.QUEUED || it.state == JobState.RUNNING }
@@ -146,21 +154,82 @@ fun HomeScreen(
             }
 
             item {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text("Sites connectés", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = ui.text, modifier = Modifier.weight(1f))
-                    Text("${sites.size} site${if (sites.size > 1) "s" else ""}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = ui.accent)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Sites connectés", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = ui.text)
+                        Text("${sites.size} site${if (sites.size > 1) "s" else ""}" + if (folders.isNotEmpty()) " · ${folders.size} client${if (folders.size > 1) "s" else ""}" else "", fontSize = 12.sp, color = ui.textSubtle)
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { newFolder = true }.padding(horizontal = 8.dp, vertical = 6.dp),
+                    ) {
+                        Ico(R.drawable.ic_ui_folder, ui.accent, 17.dp)
+                        Text("Nouveau dossier", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ui.accent)
+                    }
                 }
             }
 
-            item {
-                UiCard {
-                    sites.forEachIndexed { i, s ->
-                        SiteRow(s, jobs.values.filter { it.siteId == s.site.id }) { onOpenSite(s.site.id) }
-                        if (i < sites.lastIndex) ListDivider(70.dp)
+            if (folders.isEmpty()) {
+                item { SiteList(sites, jobs, onOpenSite) }
+            } else {
+                val known = folders.map { it.id }.toSet()
+                val groups = folders.map { it to sites.filter { s -> s.site.folderId == it.id } } +
+                    listOf(null to sites.filter { it.site.folderId == null || it.site.folderId !in known })
+                groups.forEach { (f, list) ->
+                    if (f == null && list.isEmpty()) return@forEach
+                    val key = f?.id ?: "none"
+                    item(key = "folder-$key") {
+                        val folderPending = list.flatMap { it.pending }
+                        val busy = list.any { s -> active.any { it.siteId == s.site.id } }
+                        FolderHeader(
+                            f, list.size, folderPending.size, busy, collapsed = key in collapsed,
+                            onToggle = { collapsed = if (key in collapsed) collapsed - key else collapsed + key },
+                            onUpdate = f?.let { { confirmFolder = it } },
+                            onEdit = f?.let { { editFolder = it } },
+                        )
+                    }
+                    if (key !in collapsed) {
+                        item(key = "sites-$key") {
+                            if (list.isEmpty()) {
+                                Text(
+                                    "Aucun site. Ouvrez un site puis « Classer dans un dossier ».",
+                                    fontSize = 13.sp, color = ui.textSubtle, modifier = Modifier.padding(horizontal = 4.dp),
+                                )
+                            } else SiteList(list, jobs, onOpenSite)
+                        }
                     }
                 }
             }
         }
+    }
+
+    if (newFolder) {
+        FolderDialog(null, onDismiss = { newFolder = false }, onSave = { n, c -> newFolder = false; vm.createFolder(n, c) })
+    }
+    editFolder?.let { f ->
+        FolderDialog(
+            f,
+            onDismiss = { editFolder = null },
+            onSave = { n, c -> editFolder = null; vm.updateFolder(f.id, n, c) },
+            onDelete = { editFolder = null; vm.deleteFolder(f.id) },
+        )
+    }
+    confirmFolder?.let { f ->
+        val list = sites.filter { it.site.folderId == f.id }
+        val n = list.sumOf { it.updateCount }
+        AlertDialog(
+            onDismissRequest = { confirmFolder = null },
+            title = { Text("Mettre à jour « ${f.name} » ?") },
+            text = { Text("$n mise(s) à jour vont être installées sur ${list.count { it.updateCount > 0 }} site(s) de ce client. Pensez à vos sauvegardes avant une mise à jour majeure de WordPress.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmFolder = null
+                    vm.updateFolderSites(f.id)
+                }) { Text("Mettre à jour") }
+            },
+            dismissButton = { TextButton(onClick = { confirmFolder = null }) { Text("Annuler") } },
+        )
     }
 
     if (confirmAll) {
@@ -217,6 +286,63 @@ private fun StatCard(@DrawableRes icon: Int, value: Int, label: String, modifier
                 Text(label, fontSize = 12.sp, color = ui.textSubtle, fontWeight = FontWeight.Medium)
             }
         }
+    }
+}
+
+@Composable
+private fun SiteList(sites: List<SiteState>, jobs: Map<String, UpdateJob>, onOpenSite: (String) -> Unit) {
+    UiCard {
+        sites.forEachIndexed { i, s ->
+            SiteRow(s, jobs.values.filter { it.siteId == s.site.id }) { onOpenSite(s.site.id) }
+            if (i < sites.lastIndex) ListDivider(70.dp)
+        }
+    }
+}
+
+/** En-tête d'un dossier client : repli, compteur, « Mettre à jour » et modification. */
+@Composable
+private fun FolderHeader(
+    f: Folder?,
+    count: Int,
+    pending: Int,
+    busy: Boolean,
+    collapsed: Boolean,
+    onToggle: () -> Unit,
+    onUpdate: (() -> Unit)?,
+    onEdit: (() -> Unit)?,
+) {
+    val ui = LocalUi.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onToggle).padding(start = 4.dp, top = 4.dp, bottom = 2.dp),
+    ) {
+        FolderTile(f, 34.dp)
+        Column(Modifier.weight(1f)) {
+            Text(f?.name ?: "Sans dossier", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ui.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                "$count site${if (count > 1) "s" else ""}" + when {
+                    busy -> " · mise à jour en cours"
+                    pending > 0 -> " · $pending en attente"
+                    count > 0 -> " · à jour"
+                    else -> ""
+                },
+                fontSize = 12.sp, color = if (pending > 0 && !busy) ui.warning else ui.textSubtle,
+            )
+        }
+        when {
+            busy -> Spinner(ui.accent, 18.dp)
+            pending > 0 && onUpdate != null -> Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(ui.accentSoft).clickable(onClick = onUpdate).padding(horizontal = 10.dp, vertical = 7.dp),
+            ) {
+                Ico(R.drawable.ic_ui_download, ui.onAccentSoft, 15.dp)
+                Text("Mettre à jour", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ui.onAccentSoft)
+            }
+        }
+        if (onEdit != null) GhostIconButton(R.drawable.ic_ui_edit, "Modifier le dossier", onEdit, tint = ui.textMuted)
+        Ico(R.drawable.ic_ui_chevron_right, ui.textSubtle, 18.dp, modifier = Modifier.rotate(if (collapsed) 0f else 90f))
     }
 }
 
