@@ -1,0 +1,104 @@
+<!-- Page « Remote Updater » pour lewebmax.com.
+     Les jetons {{…}} sont remplacés au déploiement par les adresses des fichiers téléversés. -->
+<style>
+.ru-wrap{max-width:1040px;margin:0 auto;padding:0 20px;font-family:inherit;color:#1D2327}
+.ru-hero{background:#1D2327;color:#fff;border-radius:28px;padding:48px 36px;display:flex;flex-wrap:wrap;gap:32px;align-items:center}
+.ru-hero h1{color:#fff;font-size:40px;line-height:1.15;margin:0 0 14px}
+.ru-hero p{color:#C3C4C7;font-size:18px;margin:0 0 24px}
+.ru-hero-text{flex:1 1 420px}
+.ru-hero img{flex:0 1 260px;max-width:260px;border-radius:24px}
+.ru-btns{display:flex;flex-wrap:wrap;gap:12px}
+.ru-btn{display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border-radius:14px;font-weight:700;text-decoration:none!important;font-size:16px}
+.ru-btn-primary{background:#2271B1;color:#fff!important}
+.ru-btn-primary:hover{background:#135E96}
+.ru-btn-ghost{background:#fff;color:#1D2327!important}
+.ru-meta{font-size:13px;color:#A7AAAD;margin-top:14px}
+.ru-section{margin:56px 0}
+.ru-section h2{font-size:28px;margin:0 0 20px}
+.ru-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.ru-card{background:#fff;border:1px solid #E4E6E8;border-radius:20px;padding:22px}
+.ru-card h3{font-size:17px;margin:0 0 6px}
+.ru-card p{margin:0;color:#50575E;font-size:15px}
+.ru-shots{display:flex;gap:16px;overflow-x:auto;padding-bottom:8px}
+.ru-shots img{width:220px;flex:0 0 220px;border-radius:22px;border:1px solid #E4E6E8}
+.ru-steps{counter-reset:s;list-style:none;padding:0;margin:0}
+.ru-steps li{counter-increment:s;position:relative;padding:0 0 18px 52px}
+.ru-steps li:before{content:counter(s);position:absolute;left:0;top:-2px;width:34px;height:34px;border-radius:50%;background:#F0F6FC;color:#2271B1;font-weight:800;display:flex;align-items:center;justify-content:center}
+.ru-log{background:#fff;border:1px solid #E4E6E8;border-radius:20px;padding:24px 28px}
+.ru-log h3{margin:0 0 4px;font-size:18px}
+.ru-log .ru-date{color:#646970;font-size:13px;margin-bottom:10px}
+.ru-log ul{margin:0 0 18px 18px;color:#3C434A}
+@media (max-width:600px){.ru-hero{padding:32px 22px}.ru-hero h1{font-size:30px}}
+</style>
+
+<div class="ru-wrap">
+
+<div class="ru-hero">
+  <div class="ru-hero-text">
+    <h1>Remote Updater</h1>
+    <p>Mettez à jour WordPress, vos extensions et vos thèmes depuis votre téléphone. Tous vos sites au même endroit, avec un suivi en direct de chaque mise à jour.</p>
+    <div class="ru-btns">
+      <a class="ru-btn ru-btn-primary" href="{{APK_URL}}" download>Télécharger l'app Android</a>
+      <a class="ru-btn ru-btn-ghost" href="{{ZIP_URL}}" download>Télécharger l'extension WordPress</a>
+    </div>
+    <div class="ru-meta">Version {{VERSION}} · Android 8.0+ · WordPress 5.8+ · PHP 7.4+</div>
+  </div>
+  <img src="{{SHOT_HOME}}" alt="Écran d'accueil de l'application Remote Updater">
+</div>
+
+<div class="ru-section">
+  <h2>Fonctionnalités</h2>
+  <div class="ru-grid">
+    <div class="ru-card"><h3>Tous vos sites</h3><p>Connectez chaque site en scannant un QR code. Multisite pris en charge.</p></div>
+    <div class="ru-card"><h3>Mise à jour en un geste</h3><p>Cœur, extensions, thèmes et traductions : un par un, une sélection ou tout d'un coup.</p></div>
+    <div class="ru-card"><h3>Suivi en direct</h3><p>En file, en cours, terminé ou en échec : chaque mise à jour est visible, avec la progression globale.</p></div>
+    <div class="ru-card"><h3>Extensions premium</h3><p>Mise à jour manuelle en téléversant le fichier .zip depuis votre téléphone.</p></div>
+    <div class="ru-card"><h3>Notifications</h3><p>Soyez prévenu des nouvelles mises à jour et de la fin de chaque série.</p></div>
+    <div class="ru-card"><h3>Sécurisé</h3><p>Compte protégé par mot de passe, code PIN et empreinte. Une clé par appareil, révocable dans WordPress.</p></div>
+  </div>
+</div>
+
+<div class="ru-section">
+  <h2>Captures d'écran</h2>
+  <div class="ru-shots">
+    <img src="{{SHOT_HOME}}" alt="Accueil : synthèse des mises à jour et sites connectés">
+    <img src="{{SHOT_PROGRESS}}" alt="Mise à jour en cours avec progression">
+    <img src="{{SHOT_SITE}}" alt="Page d'un site : états des mises à jour">
+    <img src="{{SHOT_UPDATES}}" alt="Liste des mises à jour à installer">
+    <img src="{{SHOT_SETTINGS}}" alt="Réglages : sécurité et notifications">
+    <img src="{{SHOT_LOCK}}" alt="Déverrouillage par code PIN">
+  </div>
+</div>
+
+<div class="ru-section">
+  <h2>Installation</h2>
+  <ol class="ru-steps">
+    <li><strong>Sur WordPress</strong> : Extensions › Ajouter › Téléverser le fichier de l'extension, puis activez-la (« Activer sur le réseau » en multisite).</li>
+    <li><strong>Sur Android</strong> : installez l'application (autorisez l'installation depuis cette source si Android le demande).</li>
+    <li><strong>Connexion</strong> : dans WordPress, Réglages › Remote Updater › « Générer un code de connexion », puis scannez le QR code avec l'app.</li>
+  </ol>
+</div>
+
+<div class="ru-section">
+  <h2>Journal des modifications</h2>
+  <div class="ru-log">
+    <h3>Version 1.1.0</h3>
+    <div class="ru-date">13 octobre 2026</div>
+    <ul>
+      <li>Nouveau design : couleurs WordPress, mode clair et nuit, icônes modernes</li>
+      <li>File de mises à jour avec états en direct et progression globale</li>
+      <li>Compte local (téléphone + mot de passe), code PIN à 4 chiffres, empreinte</li>
+      <li>Notifications des nouvelles mises à jour et de la fin des mises à jour</li>
+      <li>Favicons des sites connectés, historique des 7 derniers jours</li>
+    </ul>
+    <h3>Version 1.0.0</h3>
+    <div class="ru-date">13 octobre 2026</div>
+    <ul>
+      <li>Connexion des sites par QR code, multisite</li>
+      <li>Mise à jour du cœur, des extensions, des thèmes et des traductions</li>
+      <li>Mise à jour manuelle par fichier .zip, mises à jour automatiques</li>
+    </ul>
+  </div>
+</div>
+
+</div>
