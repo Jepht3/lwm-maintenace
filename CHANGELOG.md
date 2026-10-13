@@ -1,5 +1,10 @@
 # Journal des modifications — Remote Updater
 
+## À venir
+
+### Application Android
+- Les dossiers clients affichent « hors ligne » au lieu de « à jour » quand leurs sites ne répondent pas
+
 ## 1.3.1 — 13 octobre 2026
 
 ### Application Android

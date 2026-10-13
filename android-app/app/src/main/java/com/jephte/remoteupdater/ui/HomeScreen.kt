@@ -200,7 +200,7 @@ fun HomeScreen(
                         val folderPending = list.flatMap { it.pending }
                         val busy = list.any { s -> active.any { it.siteId == s.site.id } }
                         FolderHeader(
-                            f, list.size, folderPending.size, busy, collapsed = key in collapsed,
+                            f, list.size, folderPending.size, offline = list.count { it.error != null }, busy = busy, collapsed = key in collapsed,
                             onToggle = { collapsed = if (key in collapsed) collapsed - key else collapsed + key },
                             onUpdate = f?.let { { confirmFolder = it } },
                             onEdit = f?.let { { editFolder = it } },
@@ -322,6 +322,7 @@ private fun FolderHeader(
     f: Folder?,
     count: Int,
     pending: Int,
+    offline: Int,
     busy: Boolean,
     collapsed: Boolean,
     onToggle: () -> Unit,
@@ -340,11 +341,19 @@ private fun FolderHeader(
             Text(
                 "$count site${if (count > 1) "s" else ""}" + when {
                     busy -> " · mise à jour en cours"
-                    pending > 0 -> " · $pending en attente"
+                    pending > 0 -> " · $pending en attente" + if (offline > 0) " · $offline hors ligne" else ""
+                    offline > 0 && offline == count -> " · hors ligne"
+                    offline > 0 -> " · $offline hors ligne"
                     count > 0 -> " · à jour"
                     else -> ""
                 },
-                fontSize = 12.sp, color = if (pending > 0 && !busy) ui.warning else ui.textSubtle,
+                fontSize = 12.sp,
+                color = when {
+                    busy -> ui.textSubtle
+                    pending > 0 -> ui.warning
+                    offline > 0 -> ui.dangerText
+                    else -> ui.textSubtle
+                },
             )
         }
         when {
