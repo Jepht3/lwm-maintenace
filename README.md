@@ -33,6 +33,22 @@ Gérez les mises à jour de vos sites WordPress (cœur, extensions, thèmes, tra
 - Clés chiffrées sur le téléphone (Android Keystore)
 - Limitation des tentatives (serveur et application)
 
+## Publier une nouvelle version
+
+1. Changer le numéro de version (identique partout) :
+   - `android-app/app/build.gradle.kts` : `versionName` et `versionCode` (+1 à chaque version)
+   - `wp-plugin/remote-updater/remote-updater.php` : en-tête `Version` et `WPRU_VERSION`
+   - `wp-plugin/remote-updater/readme.txt` : `Stable tag`
+2. Ajouter une section `## X.Y.Z — date` en haut de `CHANGELOG.md` (les lignes `- …` deviennent les notes de version).
+3. Commiter, puis pousser un tag : `git tag v1.3.0 && git push origin v1.3.0`.
+
+GitHub Actions (`.github/workflows/release.yml`) construit l'APK signé et le `.zip`, puis publie la release avec `latest.json`. Ensuite, sans rien faire de plus :
+- l'application propose la mise à jour (accueil, notification, Réglages › Application) ;
+- WordPress affiche la mise à jour de l'extension (Extensions › Mises à jour, et dans l'app) ;
+- la page lewebmax.com/remote-updater/ pointe vers les nouveaux fichiers et affiche les nouveautés.
+
+Secrets GitHub requis (Settings › Secrets and variables › Actions) : `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
+
 ## Compiler l'app
 
 ```bash

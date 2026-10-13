@@ -1,5 +1,16 @@
 # Journal des modifications — Remote Updater
 
+## 1.3.0 — 13 octobre 2026
+
+### Application Android
+- L'app se met à jour toute seule : nouvelle version signalée sur l'accueil et par notification, installation en un geste
+- Réglages › Application : version installée et recherche d'une mise à jour
+- Le fichier téléchargé est vérifié (empreinte SHA-256) avant l'installation
+
+### Extension WordPress
+- Les nouvelles versions de l'extension apparaissent dans Extensions › Mises à jour (et dans l'app), comme une extension officielle
+- Compatible avec les mises à jour automatiques de WordPress
+
 ## 1.2.0 — 13 octobre 2026
 
 ### Application Android

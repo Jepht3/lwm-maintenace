@@ -1,0 +1,85 @@
+# Publie une version : poussez un tag « v1.3.0 » (ou créez une release sur GitHub avec ce tag).
+# Construit l'APK signé et le .zip de l'extension, puis les joint à la release avec latest.json,
+# que lisent l'application (mise à jour de l'app) et l'extension (mise à jour dans WordPress).
+name: Publier une version
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier les numéros de version
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          echo "V=$V" >> "$GITHUB_ENV"
+          fail() { echo "::error::$1"; exit 1; }
+          grep -q "versionName = \"$V\"" android-app/app/build.gradle.kts || fail "versionName de l'app différent de $V"
+          grep -q "define( 'WPRU_VERSION', '$V' )" wp-plugin/remote-updater/remote-updater.php || fail "WPRU_VERSION différent de $V"
+          grep -Eq "^ \* Version: +$V$" wp-plugin/remote-updater/remote-updater.php || fail "En-tête Version de l'extension différent de $V"
+          grep -q "^## $V " CHANGELOG.md || fail "Pas de section « ## $V » dans CHANGELOG.md"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Clé de signature
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          [ -n "$KEYSTORE_BASE64" ] || { echo "::error::Secret KEYSTORE_BASE64 manquant"; exit 1; }
+          mkdir -p android-app/signing
+          echo "$KEYSTORE_BASE64" | base64 -d > android-app/signing/remote-updater.jks
+          printf 'storeFile=signing/remote-updater.jks\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > android-app/signing/keystore.properties
+
+      - name: Compiler l'application
+        working-directory: android-app
+        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon --console=plain
+
+      - name: Préparer les fichiers
+        run: |
+          mkdir out
+          cp android-app/app/build/outputs/apk/release/app-release.apk out/remote-updater.apk
+          (cd wp-plugin && zip -qr ../out/remote-updater.zip remote-updater -x '*.DS_Store')
+
+          # Notes de version = section du CHANGELOG
+          awk -v v="## $V " 'index($0, v) == 1 { f = 1; next } /^## / { f = 0 } f' CHANGELOG.md > out/notes.md
+          CHANGES=$(grep '^- ' out/notes.md | sed 's/^- //' | jq -R . | jq -s .)
+
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          jq -n \
+            --arg version "$V" \
+            --argjson code "$(grep -oP 'versionCode = \K[0-9]+' android-app/app/build.gradle.kts)" \
+            --arg published "$(date -u +%Y-%m-%d)" \
+            --arg apk "$BASE/remote-updater.apk" \
+            --arg sha "$(sha256sum out/remote-updater.apk | cut -d' ' -f1)" \
+            --arg zip "$BASE/remote-updater.zip" \
+            --arg requires "$(grep -oP 'Requires at least: *\K[0-9.]+' wp-plugin/remote-updater/remote-updater.php)" \
+            --arg requires_php "$(grep -oP 'Requires PHP: *\K[0-9.]+' wp-plugin/remote-updater/remote-updater.php)" \
+            --argjson changelog "$CHANGES" \
+            '{version: $version, version_code: $code, published: $published,
+              apk_url: $apk, apk_sha256: $sha, zip_url: $zip,
+              requires: $requires, requires_php: $requires_php, changelog: $changelog}' > out/latest.json
+          cat out/latest.json
+
+      - name: Publier la release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Remote Updater ${{ env.V }}
+          body_path: out/notes.md
+          files: |
+            out/remote-updater.apk
+            out/remote-updater.zip
+            out/latest.json

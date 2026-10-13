@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,6 +68,7 @@ fun HomeScreen(
     var editFolder by remember { mutableStateOf<Folder?>(null) }
     var confirmFolder by remember { mutableStateOf<Folder?>(null) }
     var collapsed by rememberSaveable { mutableStateOf(setOf<String>()) }
+    val appUpdate by vm.appUpdate.collectAsState()
     val pending = sites.flatMap { it.pending }
     val upToDate = sites.count { it.data != null && it.updateCount == 0 && it.error == null }
     val active = jobs.values.filter { it.state == JobState.QUEUED || it.state == JobState.RUNNING }
@@ -97,6 +99,8 @@ fun HomeScreen(
                     SquareIconButton(R.drawable.ic_ui_plus, "Ajouter un site", onAdd)
                 }
             }
+
+            appUpdate?.let { u -> item { AppUpdateCard(u) { vm.installAppUpdate() } } }
 
             if (sites.isEmpty()) {
                 item { EmptyHome(onAdd) }

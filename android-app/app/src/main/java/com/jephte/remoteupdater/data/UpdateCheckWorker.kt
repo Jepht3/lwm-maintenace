@@ -42,6 +42,14 @@ class UpdateCheckWorker(context: Context, params: WorkerParameters) : CoroutineW
             Notifier.updatesAvailable(applicationContext, total, perSite)
         }
         settings.lastNotifiedTotal = total
+
+        // Nouvelle version de l'app elle-même (une seule notification par version).
+        AppUpdater.check()?.let { r ->
+            if (r.versionCode != settings.lastNotifiedAppVersion) {
+                Notifier.appUpdate(applicationContext, r)
+                settings.lastNotifiedAppVersion = r.versionCode
+            }
+        }
         return Result.success()
     }
 

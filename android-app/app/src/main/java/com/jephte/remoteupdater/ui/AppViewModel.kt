@@ -3,7 +3,10 @@ package com.jephte.remoteupdater.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.jephte.remoteupdater.BuildConfig
 import com.jephte.remoteupdater.data.ActivityLog
+import com.jephte.remoteupdater.data.AppRelease
+import com.jephte.remoteupdater.data.AppUpdater
 import com.jephte.remoteupdater.data.ApiException
 import com.jephte.remoteupdater.data.Folder
 import com.jephte.remoteupdater.data.FolderStore
@@ -34,6 +37,9 @@ data class SiteState(
     val pending: List<UpdateJob> get() = pendingJobs(this)
     val updateCount: Int get() = pending.size
 }
+
+/** Nouvelle version de l'app : [progress] non nul pendant le téléchargement. */
+data class AppUpdateState(val release: AppRelease, val progress: Float? = null, val error: String? = null)
 
 enum class JobKind(val order: Int, val label: String) {
     PLUGIN(0, "Extension"), THEME(1, "Thème"), TRANSLATIONS(2, "Traductions"), CORE(3, "WordPress")
@@ -106,8 +112,47 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _messages = Channel<String>(Channel.BUFFERED)
     val messages = _messages.receiveAsFlow()
 
+    /** Nouvelle version de l'app disponible (null = à jour ou inconnu). */
+    private val _appUpdate = MutableStateFlow<AppUpdateState?>(null)
+    val appUpdate: StateFlow<AppUpdateState?> = _appUpdate
+
     init {
         refreshAll()
+        checkAppUpdate()
+    }
+
+    /* ---- Mise à jour de l'application ---- */
+
+    fun checkAppUpdate(manual: Boolean = false) {
+        viewModelScope.launch {
+            val r = AppUpdater.check()
+            if (r != null) {
+                if (_appUpdate.value?.release?.versionCode != r.versionCode) _appUpdate.value = AppUpdateState(r)
+            } else if (manual) {
+                notify("Vous avez la dernière version (${BuildConfig.VERSION_NAME}).")
+            }
+        }
+    }
+
+    fun installAppUpdate() {
+        val state = _appUpdate.value ?: return
+        if (state.progress != null) return
+        val ctx = getApplication<Application>()
+        if (!AppUpdater.canInstall(ctx)) {
+            notify("Autorisez Remote Updater à installer des applis, puis touchez à nouveau « Installer ».")
+            AppUpdater.openInstallPermission(ctx)
+            return
+        }
+        viewModelScope.launch {
+            _appUpdate.value = state.copy(progress = 0f, error = null)
+            try {
+                val apk = AppUpdater.download(ctx, state.release) { p -> _appUpdate.update { it?.copy(progress = p) } }
+                _appUpdate.update { it?.copy(progress = null) }
+                AppUpdater.install(ctx, apk)
+            } catch (e: Exception) {
+                _appUpdate.update { it?.copy(progress = null, error = e.message ?: "Téléchargement impossible.") }
+            }
+        }
     }
 
     private fun persist() = repo.save(_sites.value.map { it.site })

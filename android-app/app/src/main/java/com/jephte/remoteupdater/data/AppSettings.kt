@@ -39,6 +39,11 @@ class AppSettings private constructor(context: Context) {
         get() = prefs.getInt("last_notified", 0)
         set(value) = prefs.edit().putInt("last_notified", value).apply()
 
+    /** Dernière version de l'app déjà signalée par notification. */
+    var lastNotifiedAppVersion: Int
+        get() = prefs.getInt("last_app_version", 0)
+        set(value) = prefs.edit().putInt("last_app_version", value).apply()
+
     fun setThemeMode(mode: ThemeMode) {
         _themeMode.value = mode
         prefs.edit().putString("theme", mode.name).apply()

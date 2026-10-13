@@ -68,6 +68,7 @@ fun SettingsScreen(
     val relock by settings.relockDelayMs.collectAsState()
     val notifications by settings.notifications.collectAsState()
     val checkHours by settings.checkHours.collectAsState()
+    val appUpdate by vm.appUpdate.collectAsState()
     var biometric by remember { mutableStateOf(lock.biometricEnabled) }
     var picker by remember { mutableStateOf<String?>(null) }
     var confirm by remember { mutableStateOf<String?>(null) }
@@ -167,6 +168,22 @@ fun SettingsScreen(
                 SettingRow(R.drawable.ic_ui_plus, "Connecter un site", "QR code ou code de connexion", onClick = onAddSite)
                 ListDivider(62.dp)
                 SettingRow(R.drawable.ic_ui_package, "Extension WordPress", "« Remote Updater » doit être active sur chaque site")
+            }
+        }
+
+        item { SectionLabel("Application") }
+        item {
+            UiCard {
+                val u = appUpdate
+                if (u == null) {
+                    SettingRow(R.drawable.ic_ui_refresh, "Version ${BuildConfig.VERSION_NAME}", "Rechercher une mise à jour de l'app", onClick = { vm.checkAppUpdate(manual = true) })
+                } else {
+                    SettingRow(
+                        R.drawable.ic_ui_download, "Nouvelle version ${u.release.version}",
+                        if (u.progress != null) "Téléchargement… ${(u.progress * 100).toInt()} %" else "Vous avez la ${BuildConfig.VERSION_NAME} · toucher pour installer",
+                        onClick = { vm.installAppUpdate() },
+                    )
+                }
             }
         }
 

@@ -21,6 +21,7 @@ object Notifier {
     private const val CHANNEL_RESULTS = "results"
     private const val ID_AVAILABLE = 1
     private const val ID_RESULTS_BASE = 100
+    private const val ID_APP_UPDATE = 2
 
     fun canNotify(context: Context): Boolean =
         Build.VERSION.SDK_INT < 33 ||
@@ -65,6 +66,22 @@ object Notifier {
             .setAutoCancel(true)
             .build()
         NotificationManagerCompat.from(context).notify(ID_AVAILABLE, n)
+    }
+
+    /** « Remote Updater 1.3.1 est disponible » (nouvelle version de l'app). */
+    fun appUpdate(context: Context, release: AppRelease) {
+        if (!canNotify(context)) return
+        ensureChannels(context)
+        val n = NotificationCompat.Builder(context, CHANNEL_AVAILABLE)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(0xFF2271B1.toInt())
+            .setContentTitle("Remote Updater ${release.version} est disponible")
+            .setContentText(release.changelog.firstOrNull() ?: "Ouvrez l'app pour installer la nouvelle version.")
+            .setStyle(NotificationCompat.BigTextStyle().bigText(release.changelog.joinToString("\n") { "• $it" }))
+            .setContentIntent(openApp(context, 2))
+            .setAutoCancel(true)
+            .build()
+        NotificationManagerCompat.from(context).notify(ID_APP_UPDATE, n)
     }
 
     /** « Boutique Jephté : 8 mises à jour terminées » (fin de la file d'un site). */
