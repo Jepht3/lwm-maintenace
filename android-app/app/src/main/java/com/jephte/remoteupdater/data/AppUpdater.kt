@@ -32,22 +32,33 @@ object AppUpdater {
 
     private const val MANIFEST = "https://github.com/Jepht3/lwm-maintenace/releases/latest/download/latest.json"
 
-    /** Version plus récente que celle installée, ou null. */
-    suspend fun check(): AppRelease? = withContext(Dispatchers.IO) {
-        runCatching {
-            val o = JSONObject(get(MANIFEST).toString(Charsets.UTF_8))
-            val code = o.getInt("version_code")
-            if (code <= BuildConfig.VERSION_CODE) return@runCatching null
-            val log = o.optJSONArray("changelog")
-            AppRelease(
-                version = o.getString("version"),
-                versionCode = code,
-                apkUrl = o.getString("apk_url"),
-                apkSha256 = o.getString("apk_sha256").lowercase(),
-                changelog = if (log == null) emptyList() else (0 until log.length()).map { log.getString(it) },
-            )
-        }.getOrNull()
+    /** Page de l'app et liste de toutes les versions. */
+    const val PAGE_URL = "https://lewebmax.com/remote-updater/"
+    const val RELEASES_URL = "https://github.com/Jepht3/lwm-maintenace/releases"
+
+    /** Version plus récente que celle installée, ou null si à jour. Lève une exception si GitHub est injoignable. */
+    suspend fun fetch(): AppRelease? = withContext(Dispatchers.IO) {
+        val o = try {
+            JSONObject(get(MANIFEST).toString(Charsets.UTF_8))
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: Exception) {
+            throw ApiException("Impossible de joindre le serveur des mises à jour.")
+        }
+        val code = o.getInt("version_code")
+        if (code <= BuildConfig.VERSION_CODE) return@withContext null
+        val log = o.optJSONArray("changelog")
+        AppRelease(
+            version = o.getString("version"),
+            versionCode = code,
+            apkUrl = o.getString("apk_url"),
+            apkSha256 = o.getString("apk_sha256").lowercase(),
+            changelog = if (log == null) emptyList() else (0 until log.length()).map { log.getString(it) },
+        )
     }
+
+    /** Comme [fetch], mais silencieux en cas d'erreur (vérifications automatiques). */
+    suspend fun check(): AppRelease? = runCatching { fetch() }.getOrNull()
 
     /** Télécharge et vérifie l'APK. [onProgress] reçoit une fraction 0..1. */
     suspend fun download(context: Context, release: AppRelease, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {

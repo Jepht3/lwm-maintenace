@@ -7,6 +7,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
@@ -61,6 +64,7 @@ fun SettingsScreen(
     onLogout: () -> Unit,
     onDeleteAccount: () -> Unit,
     onAddSite: () -> Unit,
+    onAbout: () -> Unit,
 ) {
     val ui = LocalUi.current
     val context = LocalContext.current
@@ -175,15 +179,17 @@ fun SettingsScreen(
         item {
             UiCard {
                 val u = appUpdate
-                if (u == null) {
-                    SettingRow(R.drawable.ic_ui_refresh, "Version ${BuildConfig.VERSION_NAME}", "Rechercher une mise à jour de l'app", onClick = { vm.checkAppUpdate(manual = true) })
-                } else {
-                    SettingRow(
-                        R.drawable.ic_ui_download, "Nouvelle version ${u.release.version}",
-                        if (u.progress != null) "Téléchargement… ${(u.progress * 100).toInt()} %" else "Vous avez la ${BuildConfig.VERSION_NAME} · toucher pour installer",
-                        onClick = { vm.installAppUpdate() },
-                    )
-                }
+                SettingRow(
+                    R.drawable.ic_ui_info, "À propos",
+                    if (u != null) "Nouvelle version ${u.release.version} disponible" else "Version ${BuildConfig.VERSION_NAME} · vérifier les mises à jour",
+                    onClick = onAbout,
+                    trailing = if (u != null) ({
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Box(Modifier.size(9.dp).clip(CircleShape).background(Wp.Red))
+                            Ico(R.drawable.ic_ui_chevron_right, ui.textSubtle, 18.dp)
+                        }
+                    }) else null,
+                )
             }
         }
 

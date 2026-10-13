@@ -41,6 +41,9 @@ data class SiteState(
 /** Nouvelle version de l'app : [progress] non nul pendant le téléchargement. */
 data class AppUpdateState(val release: AppRelease, val progress: Float? = null, val error: String? = null)
 
+/** Vérification de la version de l'app : en cours, dernière réussite, erreur. */
+data class AppCheck(val running: Boolean = false, val checkedAt: Long = 0, val error: String? = null)
+
 enum class JobKind(val order: Int, val label: String) {
     PLUGIN(0, "Extension"), THEME(1, "Thème"), TRANSLATIONS(2, "Traductions"), CORE(3, "WordPress")
 }
@@ -116,6 +119,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _appUpdate = MutableStateFlow<AppUpdateState?>(null)
     val appUpdate: StateFlow<AppUpdateState?> = _appUpdate
 
+    /** Résultat de la dernière vérification (écran À propos). */
+    private val _appCheck = MutableStateFlow(AppCheck())
+    val appCheck: StateFlow<AppCheck> = _appCheck
+
     init {
         refreshAll()
         checkAppUpdate()
@@ -123,13 +130,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /* ---- Mise à jour de l'application ---- */
 
+
     fun checkAppUpdate(manual: Boolean = false) {
+        if (_appCheck.value.running) return
         viewModelScope.launch {
-            val r = AppUpdater.check()
-            if (r != null) {
-                if (_appUpdate.value?.release?.versionCode != r.versionCode) _appUpdate.value = AppUpdateState(r)
-            } else if (manual) {
-                notify("Vous avez la dernière version (${BuildConfig.VERSION_NAME}).")
+            if (manual) _appCheck.value = _appCheck.value.copy(running = true, error = null)
+            try {
+                val r = AppUpdater.fetch()
+                if (r != null && _appUpdate.value?.release?.versionCode != r.versionCode) _appUpdate.value = AppUpdateState(r)
+                if (r == null) _appUpdate.value = null
+                _appCheck.value = AppCheck(checkedAt = System.currentTimeMillis())
+            } catch (e: Exception) {
+                _appCheck.value = AppCheck(checkedAt = _appCheck.value.checkedAt, error = if (manual) e.message else null)
             }
         }
     }

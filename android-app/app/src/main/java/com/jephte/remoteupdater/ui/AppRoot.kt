@@ -130,6 +130,7 @@ fun AppRoot(
                                     onLogout = onLogout,
                                     onDeleteAccount = onDeleteAccount,
                                     onAddSite = { route = "add" },
+                                    onAbout = { route = "about" },
                                 )
                             }
                         }
@@ -139,6 +140,7 @@ fun AppRoot(
                             onDone = { route = ""; vm.notify("Code PIN modifié") },
                             onCancel = { route = "" },
                         )
+                        "about" -> AboutScreen(vm, onBack = { route = "" })
                         "password" -> ChangePasswordScreen(account, onBack = { route = "" }, onDone = { route = ""; vm.notify("Mot de passe modifié") })
                         else -> {
                             val state = sites.firstOrNull { it.site.id == r }
