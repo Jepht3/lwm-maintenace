@@ -180,7 +180,6 @@ private fun BottomNav(selected: Int, badge: Int, running: Boolean, onSelect: (In
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(16.dp))
                         .selectable(active, onClick = { onSelect(i) }, role = Role.Tab, interactionSource = remember { MutableInteractionSource() }, indication = null)
                         .padding(vertical = 4.dp),
                 ) {
@@ -190,8 +189,8 @@ private fun BottomNav(selected: Int, badge: Int, running: Boolean, onSelect: (In
                         }
                         if (i == 1 && badge > 0) {
                             Box(
-                                Modifier.align(Alignment.TopEnd).offset(x = (-4).dp, y = (-3).dp)
-                                    .widthIn(min = 18.dp).height(18.dp).clip(CircleShape).background(Wp.Red)
+                                Modifier.align(Alignment.TopCenter).offset(x = 15.dp, y = (-5).dp)
+                                    .widthIn(min = 20.dp).height(20.dp).clip(CircleShape).background(Wp.Red)
                                     .border(2.dp, ui.surface, CircleShape).padding(horizontal = 4.dp),
                                 contentAlignment = Alignment.Center,
                             ) { Text(if (badge > 99) "99+" else "$badge", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold) }

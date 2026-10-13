@@ -9,6 +9,7 @@
 - Supprimer un dossier ne retire pas ses sites (ils passent « sans dossier »)
 - Application signée et optimisée (2,6 Mo au lieu de 21 Mo) ; à installer après désinstallation d'une version de test
 - La barre d'état garde un fond uni quand on fait défiler l'accueil
+- Pastille du compteur de mises à jour (barre du bas) entièrement visible, posée sur le coin de l'icône
 
 ### Extension WordPress
 - Numéro de version aligné sur l'application (1.2.0)
