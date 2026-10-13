@@ -25,6 +25,11 @@ class AppSettings private constructor(context: Context) {
     private val _checkHours = MutableStateFlow(prefs.getInt("check_hours", 12))
     val checkHours: StateFlow<Int> = _checkHours
 
+    /** La permission de notification a déjà été demandée une fois. */
+    var notificationAsked: Boolean
+        get() = prefs.getBoolean("notif_asked", false)
+        set(value) = prefs.edit().putBoolean("notif_asked", value).apply()
+
     var onboardingDone: Boolean
         get() = prefs.getBoolean("onboarding_done", false)
         set(value) = prefs.edit().putBoolean("onboarding_done", value).apply()

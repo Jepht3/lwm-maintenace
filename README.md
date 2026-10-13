@@ -41,4 +41,4 @@ cd android-app
 
 JDK 17 et Android SDK (compileSdk 36) requis.
 
-> Refonte du design en cours : la version de `dist/` correspond à la dernière version compilée.
+> Design « WordPress Pro » : couleurs unies (bleu admin WordPress), mode nuit, file de mises à jour avec progression en direct, favicons des sites.

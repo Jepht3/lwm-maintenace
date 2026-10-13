@@ -14,43 +14,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Bolt
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.CloudUpload
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Language
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SystemUpdateAlt
-import androidx.compose.material.icons.rounded.Translate
-import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -64,18 +36,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.jephte.remoteupdater.MainActivity
-import com.jephte.remoteupdater.data.SiteData
+import com.jephte.remoteupdater.R
 import com.jephte.remoteupdater.data.SiteRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -85,34 +52,36 @@ private class PendingUpload(val type: String, val name: String, val bytes: ByteA
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SiteDetailScreen(vm: AppViewModel, state: SiteState, onBack: () -> Unit, onRemoved: () -> Unit) {
+fun SiteDetailScreen(vm: AppViewModel, state: SiteState, jobs: Map<String, UpdateJob>, onBack: () -> Unit, onRemoved: () -> Unit) {
+    val ui = LocalUi.current
     val id = state.site.id
     val data = state.data
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val colors = LocalAppColors.current
 
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var query by rememberSaveable { mutableStateOf("") }
     var menu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
-    var confirm by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
+    var confirmRemove by remember { mutableStateOf(false) }
+    var confirmCore by remember { mutableStateOf<UpdateJob?>(null) }
     var uploadType by remember { mutableStateOf("plugin") }
     var pending by remember { mutableStateOf<PendingUpload?>(null) }
 
-    // Sélecteur de fichier .zip pour la mise à jour manuelle
+    val siteJobs = jobs.values.filter { it.siteId == id }
+    val active = siteJobs.filter { it.state == JobState.QUEUED || it.state == JobState.RUNNING }
+    val finished = siteJobs.count { it.state == JobState.DONE || it.state == JobState.FAILED }
+    val pendingItems = state.pending
+
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         val type = uploadType
         scope.launch {
             val file = withContext(Dispatchers.IO) {
                 runCatching {
-                    val resolver = context.contentResolver
-                    val name = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
-                        if (c.moveToFirst()) c.getString(0) else null
-                    } ?: "package.zip"
-                    val bytes = resolver.openInputStream(uri)!!.use { it.readBytes() }
-                    PendingUpload(type, name, bytes)
+                    val r = context.contentResolver
+                    val name = r.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "package.zip"
+                    PendingUpload(type, name, r.openInputStream(uri)!!.use { it.readBytes() })
                 }.getOrNull()
             }
             when {
@@ -122,205 +91,249 @@ fun SiteDetailScreen(vm: AppViewModel, state: SiteState, onBack: () -> Unit, onR
             }
         }
     }
-    val pickZip: (String) -> Unit = { type ->
+    fun pickZip(type: String) {
         uploadType = type
         (context as? MainActivity)?.expectExternalActivity()
         picker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
     }
 
-    PullToRefreshBox(
-        isRefreshing = state.loading,
-        onRefresh = { vm.refresh(id, force = true) },
-        modifier = Modifier.fillMaxSize().background(colors.tint),
-    ) {
-        LazyColumn(
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize(),
+    Column(Modifier.fillMaxSize().background(ui.bg)) {
+        Column(Modifier.background(ui.surface)) {
+            TopBar(
+                state.site.name,
+                SiteRepository.hostOf(state.site.url) + (data?.let { " · WP ${it.info.wpVersion} · PHP ${it.info.phpVersion.substringBeforeLast('.')}" } ?: ""),
+                onBack,
+            ) {
+                GhostIconButton(R.drawable.ic_ui_refresh, "Rechercher les mises à jour", { vm.refresh(id, force = true) })
+                Box {
+                    GhostIconButton(R.drawable.ic_ui_more, "Plus d'options", { menu = true })
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(text = { Text("Renommer") }, leadingIcon = { Ico(R.drawable.ic_ui_edit, ui.text, 20.dp) }, onClick = { menu = false; renaming = true })
+                        DropdownMenuItem(
+                            text = { Text("Ouvrir l'administration") },
+                            leadingIcon = { Ico(R.drawable.ic_ui_external, ui.text, 20.dp) },
+                            onClick = {
+                                menu = false
+                                context.startActivity(Intent(Intent.ACTION_VIEW, (data?.info?.adminUrl?.ifEmpty { null } ?: (state.site.url + "wp-admin/")).toUri()))
+                            },
+                        )
+                        DropdownMenuItem(text = { Text("Retirer ce site", color = ui.danger) }, leadingIcon = { Ico(R.drawable.ic_ui_trash, ui.danger, 20.dp) }, onClick = { menu = false; confirmRemove = true })
+                    }
+                }
+            }
+            if (data != null) {
+                val core = pendingItems.count { it.kind == JobKind.CORE || it.kind == JobKind.TRANSLATIONS }
+                val pl = pendingItems.count { it.kind == JobKind.PLUGIN }
+                val th = pendingItems.count { it.kind == JobKind.THEME }
+                Box(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp)) {
+                    Segmented(listOf("Extensions", "Thèmes", "WordPress"), tab, { tab = it; query = "" }, listOf(pl, th, core))
+                }
+            }
+            ListDivider()
+        }
+
+        PullToRefreshBox(
+            isRefreshing = state.loading && data != null,
+            onRefresh = { vm.refresh(id, force = true) },
+            modifier = Modifier.weight(1f),
         ) {
-            item {
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (data == null) {
+                    item {
+                        UiCard {
+                            Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                if (state.loading) {
+                                    Spinner(ui.accent)
+                                    Text("Chargement du site…", color = ui.text)
+                                } else {
+                                    Ico(R.drawable.ic_ui_alert, ui.danger)
+                                    Text(state.error ?: "Aucune donnée.", color = ui.dangerText)
+                                }
+                            }
+                        }
+                    }
+                    return@LazyColumn
+                }
+                if (state.error != null) item { ErrorBox(state.error) }
+                if (!data.info.fileModsAllowed) item { ErrorBox("Les modifications de fichiers sont désactivées sur ce site (DISALLOW_FILE_MODS).") }
+
+                when (tab) {
+                    0, 1 -> {
+                        val plugins = tab == 0
+                        item {
+                            UiCard(onClick = if ("upload:${if (plugins) "plugin" else "theme"}" in state.busy) null else ({ pickZip(if (plugins) "plugin" else "theme") })) {
+                                Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    val uploading = "upload:${if (plugins) "plugin" else "theme"}" in state.busy
+                                    if (uploading) Box(Modifier.padding(9.dp)) { Spinner(ui.accent) } else IconTile(R.drawable.ic_ui_upload, ui.accentSoft, ui.accent, size = 38.dp)
+                                    Column(Modifier.weight(1f)) {
+                                        Text(if (uploading) "Téléversement en cours…" else "Mise à jour manuelle", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ui.text)
+                                        Text(if (plugins) "Téléverser le .zip d'une extension" else "Téléverser le .zip d'un thème", fontSize = 12.sp, color = ui.textSubtle)
+                                    }
+                                    Ico(R.drawable.ic_ui_chevron_right, ui.textSubtle, 18.dp)
+                                }
+                            }
+                        }
+                        val all = if (plugins) data.plugins.map { Triple(it.file, it.name, it) } else data.themes.map { Triple(it.slug, it.name, it) }
+                        if (all.size > 6) {
+                            item {
+                                UiTextField(query, { query = it }, if (plugins) "Rechercher une extension" else "Rechercher un thème", leading = R.drawable.ic_ui_search, placeholder = "Nom…")
+                            }
+                        }
+                        val q = query.trim().lowercase()
+                        val updatable = if (plugins) data.plugins.count { it.updateAvailable } else data.themes.count { it.updateAvailable }
+                        item {
+                            SectionLabel(
+                                (if (updatable > 0) "$updatable mise${if (updatable > 1) "s" else ""} à jour · " else "") +
+                                    "${all.size} ${if (plugins) "extension" else "thème"}${if (all.size > 1) "s" else ""}",
+                            )
+                        }
+                        item {
+                            UiCard {
+                                val rows = if (plugins) data.plugins.filter { q.isEmpty() || q in it.name.lowercase() } else emptyList()
+                                val themeRows = if (!plugins) data.themes.filter { q.isEmpty() || q in it.name.lowercase() } else emptyList()
+                                if (plugins) {
+                                    rows.forEachIndexed { i, p ->
+                                        val job = jobs["$id|${JobKind.PLUGIN.name}|${p.file}"]
+                                        val st = rowStateFor(job, jobs.values, p.updateAvailable, "v${p.version}" + if (p.autoUpdate) " · mise à jour auto" else (if (p.active) "" else " · inactive"), p.autoUpdate)
+                                        val j = job ?: UpdateJob(id, state.site.name, JobKind.PLUGIN, p.file, p.name, p.version, p.newVersion.orEmpty())
+                                        UpdateRow(
+                                            p.name, p.version, p.newVersion.orEmpty(), st,
+                                            onUpdate = { vm.updateOne(j) }, onRetry = { vm.retry(j) },
+                                            trailingUpToDate = { UiSwitch(p.autoUpdate, { vm.setAutoUpdate(id, "plugin", p.file, it) }) },
+                                        )
+                                        if (i < rows.lastIndex) ListDivider(66.dp)
+                                    }
+                                } else {
+                                    themeRows.forEachIndexed { i, t ->
+                                        val job = jobs["$id|${JobKind.THEME.name}|${t.slug}"]
+                                        val st = rowStateFor(job, jobs.values, t.updateAvailable, "v${t.version}" + if (t.active) " · thème actif" else "", t.autoUpdate)
+                                        val j = job ?: UpdateJob(id, state.site.name, JobKind.THEME, t.slug, t.name, t.version, t.newVersion.orEmpty())
+                                        UpdateRow(
+                                            t.name, t.version, t.newVersion.orEmpty(), st,
+                                            onUpdate = { vm.updateOne(j) }, onRetry = { vm.retry(j) },
+                                            trailingUpToDate = { UiSwitch(t.autoUpdate, { vm.setAutoUpdate(id, "theme", t.slug, it) }) },
+                                        )
+                                        if (i < themeRows.lastIndex) ListDivider(66.dp)
+                                    }
+                                }
+                            }
+                        }
+                        item {
+                            Text(
+                                "L'interrupteur active la mise à jour automatique par WordPress.",
+                                fontSize = 12.sp, color = ui.textSubtle, modifier = Modifier.padding(horizontal = 4.dp),
+                            )
+                        }
+                    }
+                    else -> {
+                        item { SectionLabel("Cœur et langues") }
+                        item {
+                            UiCard {
+                                val coreJob = jobs["$id|${JobKind.CORE.name}|core"]
+                                val cj = coreJob ?: UpdateJob(id, state.site.name, JobKind.CORE, "core", "WordPress", data.core.current, data.core.newVersion.orEmpty())
+                                UpdateRow(
+                                    "WordPress", data.core.current, data.core.newVersion.orEmpty(),
+                                    rowStateFor(coreJob, jobs.values, data.core.updateAvailable, "Version ${data.core.current}"),
+                                    onUpdate = { confirmCore = cj }, onRetry = { vm.retry(cj) }, icon = R.drawable.ic_ui_globe,
+                                )
+                                ListDivider(66.dp)
+                                val trJob = jobs["$id|${JobKind.TRANSLATIONS.name}|translations"]
+                                val tj = trJob ?: UpdateJob(id, state.site.name, JobKind.TRANSLATIONS, "translations", "Traductions", "${data.translations.size} paquet(s)", data.translations.map { it.language }.distinct().joinToString())
+                                UpdateRow(
+                                    "Traductions", "${data.translations.size} paquet(s)", data.translations.map { it.language }.distinct().joinToString(),
+                                    rowStateFor(trJob, jobs.values, data.translations.isNotEmpty(), "Toutes les langues sont à jour"),
+                                    onUpdate = { vm.updateOne(tj) }, onRetry = { vm.retry(tj) }, icon = R.drawable.ic_ui_translate,
+                                )
+                            }
+                        }
+                        item { SectionLabel("Serveur") }
+                        item {
+                            UiCard {
+                                InfoLine("WordPress", data.info.wpVersion)
+                                ListDivider(16.dp)
+                                InfoLine("PHP", data.info.phpVersion)
+                                ListDivider(16.dp)
+                                InfoLine("Multisite", if (data.info.multisite) "Oui · ${data.info.sitesCount} sites" else "Non")
+                                ListDivider(16.dp)
+                                InfoLine("Installation des mises à jour", if (data.info.fileModsAllowed) "Autorisée" else "Désactivée")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Barre d'action fixe : progression de la file ou « Tout mettre à jour »
+        if (active.isNotEmpty() || pendingItems.isNotEmpty() || finished > 0) {
+            Column(Modifier.background(ui.surface)) {
+                ListDivider()
                 Row(
+                    Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    RoundIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Retour", onBack)
-                    Spacer(Modifier.weight(1f))
-                    RoundIconButton(Icons.Rounded.Refresh, "Rechercher les mises à jour", { vm.refresh(id, force = true) })
-                    Spacer(Modifier.width(10.dp))
-                    Box {
-                        RoundIconButton(Icons.Rounded.MoreVert, "Plus d'options", { menu = true })
-                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Renommer") },
-                                leadingIcon = { Icon(Icons.Rounded.Edit, null) },
-                                onClick = {
-                                    menu = false
-                                    renaming = true
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Ouvrir l'administration") },
-                                leadingIcon = { Icon(Icons.AutoMirrored.Rounded.OpenInNew, null) },
-                                onClick = {
-                                    menu = false
-                                    val target = data?.info?.adminUrl?.ifEmpty { null } ?: (state.site.url + "wp-admin/")
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, target.toUri()))
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Retirer ce site", color = MaterialTheme.colorScheme.error) },
-                                leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                                onClick = {
-                                    menu = false
-                                    confirm = "Retirer ce site de l'application ? Pensez aussi à révoquer la connexion dans WordPress." to onRemoved
-                                },
-                            )
+                    if (active.isNotEmpty()) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("$finished sur ${siteJobs.size} terminée${if (finished > 1) "s" else ""}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ui.text)
+                            ProgressBar(finished.toFloat() / siteJobs.size.coerceAtLeast(1), ui.accent, ui.track)
                         }
+                        if (active.any { it.state == JobState.QUEUED }) SecondaryButton("Arrêter", { vm.cancelQueue(id) })
+                    } else if (pendingItems.isNotEmpty()) {
+                        PrimaryButton(
+                            "Tout mettre à jour (${pendingItems.size})",
+                            { vm.updateEverything(id) },
+                            Modifier.fillMaxWidth(),
+                            icon = R.drawable.ic_ui_download,
+                            enabled = data?.info?.fileModsAllowed != false,
+                        )
+                    } else {
+                        val failed = siteJobs.count { it.state == JobState.FAILED }
+                        Ico(if (failed == 0) R.drawable.ic_ui_check else R.drawable.ic_ui_alert, if (failed == 0) ui.success else ui.danger)
+                        Text(
+                            if (failed == 0) "Toutes les mises à jour sont terminées" else "$failed mise(s) à jour en échec",
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ui.text, modifier = Modifier.weight(1f),
+                        )
                     }
                 }
-            }
-            item {
-                Column(Modifier.padding(top = 14.dp, start = 2.dp)) {
-                    Text(state.site.name, fontSize = 36.sp, lineHeight = 40.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        SiteRepository.hostOf(state.site.url) + (data?.let {
-                            " · WordPress ${it.info.wpVersion} · PHP ${it.info.phpVersion}" + if (it.info.multisite) " · Multisite (${it.info.sitesCount})" else ""
-                        } ?: ""),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            if (data == null) {
-                item {
-                    SoftCard {
-                        if (state.loading) Row(verticalAlignment = Alignment.CenterVertically) {
-                            SmallSpinner()
-                            Spacer(Modifier.width(12.dp))
-                            Text("Chargement…")
-                        } else Text(state.error ?: "Aucune donnée.", color = MaterialTheme.colorScheme.error)
-                    }
-                }
-                return@LazyColumn
-            }
-
-            val coreUpdates = (if (data.core.updateAvailable) 1 else 0) + (if (data.translations.isNotEmpty()) 1 else 0)
-            val pluginUpdates = data.plugins.count { it.updateAvailable }
-            val themeUpdates = data.themes.count { it.updateAvailable }
-
-            if (state.error != null || !data.info.fileModsAllowed) {
-                item {
-                    Text(
-                        state.error ?: "Les modifications de fichiers sont désactivées sur ce site (DISALLOW_FILE_MODS).",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-            }
-            if (state.updateCount > 0) {
-                item {
-                    Button(
-                        onClick = { confirm = "Installer les ${state.updateCount} mises à jour sur ${state.site.name} ?" to { vm.updateEverything(id) } },
-                        enabled = "all" !in state.busy && data.info.fileModsAllowed,
-                        colors = ButtonDefaults.buttonColors(containerColor = WpColors.Blue),
-                        contentPadding = PaddingValues(vertical = 16.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        if ("all" in state.busy) {
-                            SmallSpinner(color = Color.White)
-                            Spacer(Modifier.width(10.dp))
-                            Text("Mise à jour en cours…", style = MaterialTheme.typography.titleSmall)
-                        } else {
-                            Icon(Icons.Rounded.SystemUpdateAlt, null, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Tout mettre à jour (${state.updateCount})", style = MaterialTheme.typography.titleSmall)
-                        }
-                    }
-                }
-            }
-            item {
-                FilterRow(
-                    listOf(
-                        if (coreUpdates > 0) "WordPress · $coreUpdates" else "WordPress",
-                        if (pluginUpdates > 0) "Extensions · $pluginUpdates" else "Extensions",
-                        if (themeUpdates > 0) "Thèmes · $themeUpdates" else "Thèmes",
-                    ),
-                    tab,
-                    {
-                        tab = it
-                        query = ""
-                    },
-                )
-            }
-            if (tab != 0 && (if (tab == 1) data.plugins.size else data.themes.size) > 5) {
-                item {
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        placeholder = { Text(if (tab == 1) "Rechercher une extension" else "Rechercher un thème") },
-                        leadingIcon = { Icon(Icons.Rounded.Search, null) },
-                        singleLine = true,
-                        shape = CircleShape,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                            unfocusedBorderColor = Color.Transparent,
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-            val q = query.trim().lowercase()
-            val shown = if (q.isEmpty()) data else data.copy(
-                plugins = data.plugins.filter { q in it.name.lowercase() || q in it.author.lowercase() },
-                themes = data.themes.filter { q in it.name.lowercase() },
-            )
-            when (tab) {
-                0 -> coreTab(vm, state, data) { msg, action -> confirm = msg to action }
-                1 -> itemsTab(vm, state, shown, plugins = true) { pickZip("plugin") }
-                else -> itemsTab(vm, state, shown, plugins = false) { pickZip("theme") }
             }
         }
     }
 
-    confirm?.let { (message, action) ->
+    confirmCore?.let { j ->
         AlertDialog(
-            onDismissRequest = { confirm = null },
-            icon = { Icon(Icons.Rounded.SystemUpdateAlt, null) },
-            text = { Text(message) },
-            confirmButton = {
-                Button(onClick = {
-                    confirm = null
-                    action()
-                }) { Text("Confirmer") }
-            },
-            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Annuler") } },
+            onDismissRequest = { confirmCore = null },
+            title = { Text("Mettre à jour WordPress ?") },
+            text = { Text("WordPress va passer de ${j.from} à ${j.to}. Faites une sauvegarde avant une mise à jour majeure.") },
+            confirmButton = { TextButton(onClick = { confirmCore = null; vm.updateOne(j) }) { Text("Mettre à jour") } },
+            dismissButton = { TextButton(onClick = { confirmCore = null }) { Text("Annuler") } },
         )
     }
-
+    if (confirmRemove) {
+        AlertDialog(
+            onDismissRequest = { confirmRemove = false },
+            title = { Text("Retirer ce site ?") },
+            text = { Text("Le site disparaîtra de l'application. Pensez aussi à révoquer la connexion dans WordPress (Réglages › Remote Updater).") },
+            confirmButton = { TextButton(onClick = { confirmRemove = false; onRemoved() }) { Text("Retirer", color = ui.danger) } },
+            dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text("Annuler") } },
+        )
+    }
     if (renaming) {
         var name by remember { mutableStateOf(state.site.name) }
         AlertDialog(
             onDismissRequest = { renaming = false },
-            icon = { Icon(Icons.Rounded.Edit, null) },
             title = { Text("Renommer le site") },
             text = { OutlinedTextField(value = name, onValueChange = { name = it }, singleLine = true, label = { Text("Nom affiché") }) },
-            confirmButton = {
-                Button(onClick = {
-                    vm.renameSite(id, name)
-                    renaming = false
-                }, enabled = name.isNotBlank()) { Text("Enregistrer") }
-            },
+            confirmButton = { TextButton(onClick = { vm.renameSite(id, name); renaming = false }, enabled = name.isNotBlank()) { Text("Enregistrer") } },
             dismissButton = { TextButton(onClick = { renaming = false }) { Text("Annuler") } },
         )
     }
-
     pending?.let { p ->
         AlertDialog(
             onDismissRequest = { pending = null },
-            icon = { Icon(Icons.Rounded.CloudUpload, null) },
             title = { Text("Mise à jour manuelle") },
             text = {
                 Text(
@@ -329,14 +342,19 @@ fun SiteDetailScreen(vm: AppViewModel, state: SiteState, onBack: () -> Unit, onR
                         else "Si ce thème est déjà installé, il sera remplacé par cette version.",
                 )
             },
-            confirmButton = {
-                Button(onClick = {
-                    pending = null
-                    vm.uploadPackage(id, p.type, p.name, p.bytes)
-                }) { Text("Téléverser") }
-            },
+            confirmButton = { TextButton(onClick = { pending = null; vm.uploadPackage(id, p.type, p.name, p.bytes) }) { Text("Téléverser") } },
             dismissButton = { TextButton(onClick = { pending = null }) { Text("Annuler") } },
         )
+    }
+}
+
+@Composable
+private fun InfoLine(label: String, value: String) {
+    val ui = LocalUi.current
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp)) {
+        Text(label, fontSize = 14.sp, color = ui.textMuted, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(8.dp))
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ui.text)
     }
 }
 
@@ -344,217 +362,4 @@ private fun formatSize(bytes: Long): String = when {
     bytes >= 1_048_576 -> String.format("%.1f Mo", bytes / 1_048_576.0)
     bytes >= 1024 -> "${bytes / 1024} Ko"
     else -> "$bytes o"
-}
-
-/* ---------------- Onglet WordPress ---------------- */
-
-private fun LazyListScope.coreTab(vm: AppViewModel, state: SiteState, data: SiteData, ask: (String, () -> Unit) -> Unit) {
-    val id = state.site.id
-    item {
-        UpdateItemCard(
-            overline = "Cœur de WordPress",
-            title = "WordPress",
-            subtitle = "Version ${data.core.current} installée",
-            icon = Icons.Rounded.Language,
-            newVersion = data.core.newVersion.takeIf { data.core.updateAvailable }?.let { "v$it" },
-            secondary = if (data.core.updateAvailable) "Disponible" else null,
-            busy = "core" in state.busy || "all" in state.busy,
-            onUpdate = {
-                ask("Mettre à jour WordPress vers ${data.core.newVersion} ? Faites une sauvegarde avant une mise à jour majeure.") { vm.updateCore(id) }
-            },
-        )
-    }
-    item {
-        UpdateItemCard(
-            overline = "Langues",
-            title = "Traductions",
-            subtitle = if (data.translations.isEmpty()) "Toutes les traductions sont à jour" else data.translations.joinToString { "${it.slug} (${it.language})" },
-            icon = Icons.Rounded.Translate,
-            newVersion = if (data.translations.isNotEmpty()) "${data.translations.size} paquet(s)" else null,
-            secondary = null,
-            busy = "translations" in state.busy || "all" in state.busy,
-            onUpdate = { vm.updateTranslations(id) },
-        )
-    }
-    item {
-        SoftCard {
-            Text("Serveur", fontSize = 22.sp, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.height(12.dp))
-            InfoRow("Version de PHP", data.info.phpVersion)
-            InfoRow("Multisite", if (data.info.multisite) "Oui · ${data.info.sitesCount} sites" else "Non")
-            InfoRow("Installation des mises à jour", if (data.info.fileModsAllowed) "Autorisée" else "Désactivée")
-        }
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    Row(Modifier.padding(vertical = 5.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-    }
-}
-
-/* ---------------- Onglets Extensions / Thèmes ---------------- */
-
-private fun LazyListScope.itemsTab(vm: AppViewModel, state: SiteState, data: SiteData, plugins: Boolean, onUpload: () -> Unit) {
-    val id = state.site.id
-    val type = if (plugins) "plugin" else "theme"
-    item { UploadCard(plugins, busy = "upload:$type" in state.busy, onClick = onUpload) }
-
-    if (plugins) {
-        val updates = data.plugins.count { it.updateAvailable }
-        if (updates > 1) item { BulkButton("Mettre à jour les $updates extensions", "plugins" in state.busy || "all" in state.busy) { vm.updateAllPlugins(id) } }
-        items(data.plugins, key = { it.file }) { p ->
-            UpdateItemCard(
-                overline = (if (p.active) "Active" else "Inactive") + if (p.author.isNotEmpty()) " · ${p.author}" else "",
-                title = p.name,
-                subtitle = "Version ${p.version} installée",
-                avatar = p.name,
-                newVersion = p.newVersion.takeIf { p.updateAvailable }?.let { "v$it" },
-                secondary = if (p.active) "Active" else "Inactive",
-                warning = when {
-                    p.updateAvailable && !p.hasPackage -> "Téléchargement impossible (licence ?) — utilisez la mise à jour manuelle"
-                    p.updateAvailable && p.requiresPhp != null -> "Requiert PHP ${p.requiresPhp}"
-                    else -> null
-                },
-                busy = "plugin:${p.file}" in state.busy || "plugins" in state.busy || "all" in state.busy,
-                onUpdate = { vm.updatePlugin(id, p.file) },
-                autoUpdate = p.autoUpdate,
-                onAutoUpdate = { vm.setAutoUpdate(id, "plugin", p.file, it) },
-            )
-        }
-    } else {
-        val updates = data.themes.count { it.updateAvailable }
-        if (updates > 1) item { BulkButton("Mettre à jour les $updates thèmes", "themes" in state.busy || "all" in state.busy) { vm.updateAllThemes(id) } }
-        items(data.themes, key = { it.slug }) { t ->
-            UpdateItemCard(
-                overline = (if (t.active) "Thème actif" else "Thème inactif") + if (t.author.isNotEmpty()) " · ${t.author}" else "",
-                title = t.name,
-                subtitle = "Version ${t.version} installée",
-                avatar = t.name,
-                newVersion = t.newVersion.takeIf { t.updateAvailable }?.let { "v$it" },
-                secondary = if (t.active) "Actif" else "Inactif",
-                warning = if (t.updateAvailable && !t.hasPackage) "Téléchargement impossible (licence ?) — utilisez la mise à jour manuelle" else null,
-                busy = "theme:${t.slug}" in state.busy || "themes" in state.busy || "all" in state.busy,
-                onUpdate = { vm.updateTheme(id, t.slug) },
-                autoUpdate = t.autoUpdate,
-                onAutoUpdate = { vm.setAutoUpdate(id, "theme", t.slug, it) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun UploadCard(plugins: Boolean, busy: Boolean, onClick: () -> Unit) {
-    SoftCard(onClick = if (busy) null else onClick) {
-        Text("Mise à jour manuelle", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(4.dp))
-        Text(if (busy) "Téléversement…" else "Fichier .zip", fontSize = 24.sp, fontWeight = FontWeight.Medium)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            if (plugins) "Remplacez une extension (premium, version précise…) par le .zip de votre choix."
-            else "Remplacez un thème par le .zip de votre choix.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(18.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            ChipPill("Choisir un fichier", dark = true)
-            Spacer(Modifier.width(8.dp))
-            ChipPill(".zip", dark = false)
-            Spacer(Modifier.weight(1f))
-            if (busy) Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) { SmallSpinner() }
-            else ArrowButton(onClick = onClick, icon = Icons.Rounded.CloudUpload, contentDescription = "Téléverser un .zip")
-        }
-    }
-}
-
-@Composable
-private fun BulkButton(label: String, busy: Boolean, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        enabled = !busy,
-        colors = ButtonDefaults.buttonColors(containerColor = LocalAppColors.current.chipDark, contentColor = LocalAppColors.current.onChipDark),
-        contentPadding = PaddingValues(vertical = 14.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        if (busy) SmallSpinner(color = LocalAppColors.current.onChipDark)
-        else Icon(Icons.Rounded.SystemUpdateAlt, null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(label)
-    }
-}
-
-/** Carte d'élément (cœur, traduction, extension, thème) au style de la maquette. */
-@Composable
-private fun UpdateItemCard(
-    overline: String,
-    title: String,
-    subtitle: String,
-    newVersion: String?,
-    secondary: String?,
-    busy: Boolean,
-    onUpdate: () -> Unit,
-    icon: ImageVector? = null,
-    avatar: String? = null,
-    warning: String? = null,
-    autoUpdate: Boolean? = null,
-    onAutoUpdate: (Boolean) -> Unit = {},
-) {
-    val colors = LocalAppColors.current
-    SoftCard {
-        Row {
-            Column(Modifier.weight(1f)) {
-                Text(overline, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Text(title, fontSize = 24.sp, lineHeight = 28.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            Spacer(Modifier.width(12.dp))
-            when {
-                avatar != null -> LetterAvatar(avatar, size = 48.dp, shape = CircleShape)
-                icon != null -> Box(
-                    Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(icon, null, tint = WpColors.Blue) }
-            }
-        }
-        warning?.let {
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            }
-        }
-        Spacer(Modifier.height(18.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (newVersion != null) ChipPill(newVersion, dark = true) else ChipPill("À jour", dark = false, icon = Icons.Rounded.CheckCircle)
-            if (secondary != null) {
-                Spacer(Modifier.width(8.dp))
-                ChipPill(secondary, dark = false)
-            }
-            Spacer(Modifier.weight(1f))
-            when {
-                busy -> Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) { SmallSpinner() }
-                newVersion != null -> ArrowButton(onClick = onUpdate, icon = Icons.Rounded.Download, contentDescription = "Mettre à jour $title")
-                else -> Box(
-                    Modifier.size(54.dp).clip(CircleShape).background(colors.successContainer),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Rounded.CheckCircle, "À jour", tint = colors.success) }
-            }
-        }
-        if (autoUpdate != null) {
-            Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
-                Icon(Icons.Rounded.Bolt, null, tint = if (autoUpdate) WpColors.Blue else MaterialTheme.colorScheme.outline, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Mise à jour automatique", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                Switch(checked = autoUpdate, onCheckedChange = onAutoUpdate, modifier = Modifier.scale(0.8f))
-            }
-        }
-    }
 }

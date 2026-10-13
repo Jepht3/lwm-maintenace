@@ -52,6 +52,7 @@ class WPRU_Updates {
 			'name'           => is_multisite() ? get_network_option( null, 'site_name' ) : get_bloginfo( 'name' ),
 			'url'            => network_home_url( '/' ),
 			'admin_url'      => network_admin_url(),
+			'icon_url'       => self::site_icon(),
 			'wp_version'     => $wp_version,
 			'php_version'    => PHP_VERSION,
 			'multisite'      => is_multisite(),
@@ -68,6 +69,16 @@ class WPRU_Updates {
 			),
 			'last_checked'   => self::last_checked(),
 		);
+	}
+
+	/**
+	 * Icône du site (Personnaliser › Identité du site) ; en multisite, celle du site principal.
+	 * Chaîne vide si aucune icône n'est définie (l'app essaiera alors /favicon.ico).
+	 */
+	private static function site_icon() {
+		$blog_id = is_multisite() ? get_main_site_id() : null;
+		$url     = get_site_icon_url( 192, '', $blog_id );
+		return $url ? esc_url_raw( $url ) : '';
 	}
 
 	private static function last_checked() {

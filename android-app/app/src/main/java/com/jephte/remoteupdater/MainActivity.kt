@@ -1,15 +1,19 @@
 package com.jephte.remoteupdater
 
+import android.Manifest
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
@@ -32,122 +36,146 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.fragment.app.FragmentActivity
+import com.jephte.remoteupdater.data.AccountStore
 import com.jephte.remoteupdater.data.AppLock
 import com.jephte.remoteupdater.data.AppSettings
+import com.jephte.remoteupdater.data.Notifier
 import com.jephte.remoteupdater.data.ThemeMode
 import com.jephte.remoteupdater.data.UpdateCheckWorker
 import com.jephte.remoteupdater.ui.AppRoot
 import com.jephte.remoteupdater.ui.AppTheme
 import com.jephte.remoteupdater.ui.AppViewModel
-import com.jephte.remoteupdater.ui.OnboardingScreen
+import com.jephte.remoteupdater.ui.LoginScreen
 import com.jephte.remoteupdater.ui.PinMode
 import com.jephte.remoteupdater.ui.PinScreen
+import com.jephte.remoteupdater.ui.RegisterScreen
+import com.jephte.remoteupdater.ui.WelcomeScreen
 
 class MainActivity : FragmentActivity() {
 
     private val vm: AppViewModel by viewModels()
+    private lateinit var account: AccountStore
     private lateinit var lock: AppLock
     private lateinit var settings: AppSettings
 
-    /** L'app est verrouillée au lancement et après un délai en arrière-plan (réglable). */
+    /** Incrémenté à chaque changement d'état d'authentification (force la recomposition). */
+    private var authVersion by mutableStateOf(0)
     private var locked by mutableStateOf(true)
-    private var onboarding by mutableStateOf(false)
-    private var hasPin by mutableStateOf(false)
+    private var registering by mutableStateOf(false)
     private var backgroundedAt = 0L
     private var skipNextRelock = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
-
-        // Sortie de l'écran de démarrage : le logo grossit pendant que l'écran s'efface.
-        splash.setOnExitAnimationListener { provider ->
+        splash.setOnExitAnimationListener { p ->
             AnimatorSet().apply {
                 playTogether(
-                    ObjectAnimator.ofFloat(provider.iconView, View.SCALE_X, 1f, 1.4f),
-                    ObjectAnimator.ofFloat(provider.iconView, View.SCALE_Y, 1f, 1.4f),
-                    ObjectAnimator.ofFloat(provider.view, View.ALPHA, 1f, 0f),
+                    ObjectAnimator.ofFloat(p.iconView, View.SCALE_X, 1f, 1.3f),
+                    ObjectAnimator.ofFloat(p.iconView, View.SCALE_Y, 1f, 1.3f),
+                    ObjectAnimator.ofFloat(p.view, View.ALPHA, 1f, 0f),
                 )
-                duration = 400L
+                duration = 350L
                 addListener(object : AnimatorListenerAdapter() {
-                    override fun onAnimationEnd(animation: Animator) = provider.remove()
+                    override fun onAnimationEnd(animation: Animator) = p.remove()
                 })
                 start()
             }
         }
 
+        account = AccountStore(this)
         lock = AppLock(this)
         settings = AppSettings.get(this)
-        hasPin = lock.hasPin
         locked = savedInstanceState?.getBoolean("locked", true) ?: true
-        onboarding = !settings.onboardingDone && !hasPin
         UpdateCheckWorker.schedule(this)
 
         setContent {
             val themeMode by settings.themeMode.collectAsState()
-            LaunchedEffect(locked, onboarding, hasPin, themeMode) {
-                val lightIcons = locked || onboarding || !hasPin || themeMode == ThemeMode.DARK
+            @Suppress("UNUSED_EXPRESSION") authVersion
+            val stage = when {
+                !account.hasAccount -> if (registering) "register" else "welcome"
+                !lock.loggedIn -> "login"
+                !lock.hasPin -> "pin-setup"
+                else -> "app"
+            }
+            val darkChrome = stage != "register" && stage != "login" && (stage != "app" || locked) || themeMode == ThemeMode.DARK
+            LaunchedEffect(darkChrome) {
                 enableEdgeToEdge(
-                    statusBarStyle = if (lightIcons) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    statusBarStyle = if (darkChrome) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
                     else SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
                     navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
                 )
             }
 
-            AppTheme(themeMode) {
-                val stage = when {
-                    onboarding -> "onboarding"
-                    !hasPin -> "setup"
-                    else -> "app"
+            // Demande d'autorisation des notifications à la première ouverture de l'app
+            val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                settings.setNotifications(granted)
+                UpdateCheckWorker.schedule(this)
+            }
+            LaunchedEffect(stage) {
+                if (stage == "app" && Build.VERSION.SDK_INT >= 33 && !Notifier.canNotify(this@MainActivity) && !settings.notificationAsked) {
+                    settings.notificationAsked = true
+                    notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
-                AnimatedContent(
-                    targetState = stage,
-                    transitionSpec = { fadeIn(tween(350)) togetherWith fadeOut(tween(250)) },
-                    label = "stage",
-                ) { s ->
+            }
+
+            AppTheme(themeMode) {
+                AnimatedContent(stage, transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) }, label = "stage") { s ->
                     when (s) {
-                        "onboarding" -> OnboardingScreen(onFinish = {
-                            settings.onboardingDone = true
-                            onboarding = false
-                        })
-                        "setup" -> PinScreen(
-                            mode = PinMode.SETUP,
-                            lock = lock,
-                            biometricAvailable = biometricAvailable(),
-                            onBiometric = {},
+                        "welcome" -> WelcomeScreen(onCreate = { registering = true })
+                        "register" -> RegisterScreen(
+                            account,
+                            onBack = { registering = false },
+                            onDone = {
+                                registering = false
+                                lock.loggedIn = true
+                                locked = false
+                                authVersion++
+                            },
+                        )
+                        "login" -> LoginScreen(
+                            account,
+                            pinBlocked = lock.pinBlocked,
+                            onLoggedIn = {
+                                lock.loggedIn = true
+                                lock.resetFailures()
+                                locked = false
+                                authVersion++
+                            },
+                            onReset = ::resetEverything,
+                        )
+                        "pin-setup" -> PinScreen(
+                            PinMode.SETUP, lock, account.name, biometricAvailable(), onBiometric = {},
                             onDone = {
                                 locked = false
-                                hasPin = true
+                                authVersion++
                             },
                         )
                         else -> Box(Modifier.fillMaxSize()) {
-                            // L'app reste composée sous l'écran de verrouillage pour ne pas perdre
-                            // l'état (fichier choisi, écran ouvert…) lors d'un reverrouillage.
+                            // L'app reste composée sous l'écran de verrouillage : rien n'est perdu au reverrouillage.
                             AppRoot(
-                                vm = vm,
-                                settings = settings,
-                                lock = lock,
-                                biometricAvailable = biometricAvailable(),
-                                onBiometric = ::showBiometricPrompt,
+                                vm, settings, account, lock, biometricAvailable(), ::showBiometricPrompt,
                                 onLockNow = { locked = true },
+                                onLogout = {
+                                    lock.loggedIn = false
+                                    locked = true
+                                    authVersion++
+                                },
+                                onDeleteAccount = ::resetEverything,
                             )
                             if (locked) {
                                 Box(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .clearAndSetSemantics {}
-                                        .pointerInput(Unit) {
-                                            awaitPointerEventScope {
-                                                while (true) awaitPointerEvent().changes.forEach { it.consume() }
-                                            }
-                                        },
+                                    Modifier.fillMaxSize().clearAndSetSemantics {}.pointerInput(Unit) {
+                                        awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } }
+                                    },
                                 ) {
                                     PinScreen(
-                                        mode = PinMode.UNLOCK,
-                                        lock = lock,
-                                        biometricAvailable = biometricAvailable(),
-                                        onBiometric = ::showBiometricPrompt,
+                                        PinMode.UNLOCK, lock, account.name, biometricAvailable(), ::showBiometricPrompt,
                                         onDone = { locked = false },
+                                        onUsePassword = {
+                                            lock.loggedIn = false
+                                            authVersion++
+                                        },
                                     )
                                 }
                             }
@@ -158,12 +186,22 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    /** Efface le compte, le PIN, les sites et l'historique. */
+    private fun resetEverything() {
+        vm.wipeAll()
+        lock.clear()
+        account.delete()
+        registering = false
+        locked = true
+        authVersion++
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putBoolean("locked", locked)
     }
 
-    /** Appelé avant d'ouvrir le sélecteur de fichiers ou le scanner : pas de reverrouillage au retour. */
+    /** Avant d'ouvrir le sélecteur de fichiers ou le scanner : pas de reverrouillage au retour. */
     fun expectExternalActivity() {
         skipNextRelock = true
     }
@@ -179,9 +217,7 @@ class MainActivity : FragmentActivity() {
             skipNextRelock = false
             return
         }
-        if (hasPin && backgroundedAt > 0 &&
-            SystemClock.elapsedRealtime() - backgroundedAt >= settings.relockDelayMs.value
-        ) {
+        if (lock.hasPin && backgroundedAt > 0 && SystemClock.elapsedRealtime() - backgroundedAt >= settings.relockDelayMs.value) {
             locked = true
         }
     }
@@ -190,7 +226,7 @@ class MainActivity : FragmentActivity() {
         BiometricManager.from(this).canAuthenticate(BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
 
     private fun showBiometricPrompt() {
-        val prompt = BiometricPrompt(
+        BiometricPrompt(
             this,
             ContextCompat.getMainExecutor(this),
             object : BiometricPrompt.AuthenticationCallback() {
@@ -199,8 +235,7 @@ class MainActivity : FragmentActivity() {
                     locked = false
                 }
             },
-        )
-        prompt.authenticate(
+        ).authenticate(
             BiometricPrompt.PromptInfo.Builder()
                 .setTitle("Déverrouiller Remote Updater")
                 .setSubtitle("Confirmez votre identité")

@@ -71,7 +71,7 @@ fun HomeScreen(
         modifier = Modifier.fillMaxSize().background(ui.bg),
     ) {
         LazyColumn(
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 120.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -233,11 +233,11 @@ private fun SiteRow(s: SiteState, siteJobs: List<UpdateJob>, onClick: () -> Unit
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 when {
-                    active.isNotEmpty() -> LetterTile(s.site.name, 42.dp, ui.accentSoft, ui.accent)
-                    s.error != null -> LetterTile(s.site.name, 42.dp, ui.dangerSoft, ui.danger)
-                    s.updateCount > 0 -> LetterTile(s.site.name, 42.dp, ui.warningSoft, ui.warning)
-                    d != null -> LetterTile(s.site.name, 42.dp, ui.successSoft, ui.successText)
-                    else -> LetterTile(s.site.name, 42.dp, ui.neutralSoft, ui.textMuted)
+                    active.isNotEmpty() -> SiteAvatar(s, 42.dp, ui.accentSoft, ui.accent)
+                    s.error != null -> SiteAvatar(s, 42.dp, ui.dangerSoft, ui.danger)
+                    s.updateCount > 0 -> SiteAvatar(s, 42.dp, ui.warningSoft, ui.warning)
+                    d != null -> SiteAvatar(s, 42.dp, ui.successSoft, ui.successText)
+                    else -> SiteAvatar(s, 42.dp, ui.neutralSoft, ui.textMuted)
                 }
                 Column(Modifier.weight(1f)) {
                     Text(s.site.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ui.text, maxLines = 1, overflow = TextOverflow.Ellipsis)

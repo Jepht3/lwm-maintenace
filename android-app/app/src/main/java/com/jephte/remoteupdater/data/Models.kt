@@ -25,6 +25,8 @@ data class SiteInfo(
     val name: String,
     val url: String,
     val adminUrl: String,
+    /** Icône du site (favicon) fournie par WordPress, vide si aucune. */
+    val iconUrl: String,
     val wpVersion: String,
     val phpVersion: String,
     val multisite: Boolean,
@@ -105,6 +107,7 @@ fun parseSiteInfo(o: JSONObject): SiteInfo {
         name = o.str("name"),
         url = o.str("url"),
         adminUrl = o.str("admin_url"),
+        iconUrl = o.str("icon_url"),
         wpVersion = o.str("wp_version"),
         phpVersion = o.str("php_version"),
         multisite = o.optBoolean("multisite"),

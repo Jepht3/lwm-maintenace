@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -54,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -466,3 +468,38 @@ fun AppLogo(size: Dp = 40.dp) {
         Icon(painterResource(R.drawable.ic_logo_mark), null, tint = Color.White, modifier = Modifier.size(size * 0.62f))
     }
 }
+
+/**
+ * Avatar d'un site : sa vraie favicon (icône WordPress ou /favicon.ico) sur fond blanc,
+ * sinon l'initiale sur le ton fourni.
+ */
+@Composable
+fun SiteAvatar(state: SiteState, size: Dp = 42.dp, fallbackBg: Color? = null, fallbackFg: Color? = null) {
+    val ui = LocalUi.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val url = state.site.url
+    val iconUrl = state.data?.info?.iconUrl
+    var bmp by remember(url) { mutableStateOf(com.jephte.remoteupdater.data.FaviconCache.peek(url)) }
+    androidx.compose.runtime.LaunchedEffect(url, iconUrl) {
+        if (bmp == null && state.data != null) bmp = com.jephte.remoteupdater.data.FaviconCache.load(context, url, iconUrl)
+    }
+    val b = bmp
+    if (b != null) {
+        val shape = RoundedCornerShape(size * 0.29f)
+        Box(
+            Modifier.size(size).clip(shape).background(Color.White).border(1.dp, ui.border, shape).padding(size * 0.16f),
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.foundation.Image(
+                bitmap = b.asImageBitmapCompat(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            )
+        }
+    } else {
+        LetterTile(state.site.name, size, fallbackBg, fallbackFg)
+    }
+}
+
+private fun android.graphics.Bitmap.asImageBitmapCompat() = this.asImageBitmap()
