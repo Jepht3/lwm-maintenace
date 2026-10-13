@@ -1,5 +1,15 @@
 # Journal des modifications — Remote Updater
 
+## 1.3.1 — 13 octobre 2026
+
+### Application Android
+- Nouvel écran Réglages › À propos : version installée, bouton « Vérifier les mises à jour », liens vers la page de l'app et la liste des versions
+- Une pastille rouge signale une nouvelle version dans Réglages
+- L'accueil n'affiche plus « Tout est à jour » quand les sites sont injoignables (« Sites injoignables », nombre de sites hors ligne)
+
+### Extension WordPress
+- Numéro de version aligné sur l'application (1.3.1)
+
 ## 1.3.0 — 13 octobre 2026
 
 ### Application Android

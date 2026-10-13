@@ -117,13 +117,26 @@ fun HomeScreen(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                         Ring(upToDate, sites.size)
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            // « À jour » seulement si les sites ont répondu : un site hors ligne n'est pas « à jour ».
+                            val offline = sites.count { it.error != null }
+                            val unknown = sites.count { it.data == null && it.error == null }
                             Text(
-                                if (pending.isEmpty()) "Tout est à jour" else "${pending.size} mise${if (pending.size > 1) "s" else ""} à jour",
+                                when {
+                                    pending.isNotEmpty() -> "${pending.size} mise${if (pending.size > 1) "s" else ""} à jour"
+                                    offline == sites.size -> "Sites injoignables"
+                                    unknown > 0 -> "Vérification…"
+                                    else -> "Tout est à jour"
+                                },
                                 color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp,
                             )
                             Text(
-                                (if (pending.isEmpty()) "${sites.size} site(s) surveillé(s)" else "sur ${pending.map { it.siteId }.distinct().size} site(s)") +
-                                    (if (lastCheck > 0) " · vérifié ${relativeTime(lastCheck)}" else ""),
+                                when {
+                                    pending.isNotEmpty() -> "sur ${pending.map { it.siteId }.distinct().size} site(s)"
+                                    offline == sites.size -> "Aucun site n'a répondu · tirez pour réessayer"
+                                    else -> "${sites.size - offline} site(s) surveillé(s)"
+                                } +
+                                    (if (offline in 1 until sites.size) " · $offline hors ligne" else "") +
+                                    (if (lastCheck > 0 && offline < sites.size) " · vérifié ${relativeTime(lastCheck)}" else ""),
                                 color = ui.heroMuted, fontSize = 13.sp, lineHeight = 18.sp,
                             )
                         }

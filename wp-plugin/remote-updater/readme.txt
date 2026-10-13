@@ -2,7 +2,7 @@
 Requires at least: 5.8
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 
 Gérez les mises à jour de WordPress, des extensions, des thèmes et des traductions depuis l'application Android Remote Updater.
